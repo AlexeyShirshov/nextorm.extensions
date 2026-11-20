@@ -7,9 +7,9 @@ public sealed record MySqlColumn(string Name, string Declaration, bool IsNullabl
 
 public static class MySqlSchemaGenerator
 {
-    // Columns are supplied in catalog ordinal order; this API never connects to MySQL.
+    // Columns are supplied in catalog ordinal order. A null key denotes a table with no declared key.
     public static void Generate(string schema, string table, IReadOnlyList<MySqlColumn> columns,
-        string primaryKeyColumn, string outputPath)
+        string? primaryKeyColumn, string outputPath)
     {
         ArgumentNullException.ThrowIfNull(columns);
         var destination = Path.GetFullPath(outputPath);
@@ -55,7 +55,7 @@ public static class MySqlSchemaGenerator
                 $"    [global::System.ComponentModel.DataAnnotations.Schema.Column({Literal(column.Name)}, TypeName = {Literal(column.Declaration)})]\n    public {type}{suffix} Column{++ordinal} {{ get; set; }}{initializer}\n");
         }
 
-        if (!keyFound)
+        if (primaryKeyColumn is not null && !keyFound)
             throw new InvalidDataException($"MySQL object {Literal(schema)}.{Literal(table)}: primary key column {Literal(primaryKeyColumn)} was not found.");
         source.Append("}\n");
 
