@@ -71,23 +71,42 @@ public static class SqliteSchemaGenerator
                     $"    [global::System.ComponentModel.DataAnnotations.Schema.Column({Literal(columnName)}, Order = {metadata.GetInt64(0)}, TypeName = {Literal(declared)})]\n" +
                     $"    public {type}{suffix} Column{metadata.GetInt64(0)} {{ get; set; }}{initializer}\n");
             }
+            var keyAttributeOffset = 0;
             if (keys.Count == 2 && rows.GetString(1) == "table")
             {
                 hasCompositeKey = true;
                 keys.Sort(static (left, right) => left.Ordinal.CompareTo(right.Ordinal));
-                source.Insert(objectStart, FormattableString.Invariant(
-                    $"\n[CompositePrimaryKey(nameof(Object{objectIndex}.Column{keys[0].ColumnId}), nameof(Object{objectIndex}.Column{keys[1].ColumnId}))]"));
+                var declaration = FormattableString.Invariant(
+                    $"\n[CompositePrimaryKey(nameof(Object{objectIndex}.Column{keys[0].ColumnId}), nameof(Object{objectIndex}.Column{keys[1].ColumnId}))]");
+                source.Insert(objectStart, declaration);
+                keyAttributeOffset = declaration.Length;
             }
-            else if (keys.Count is 3 or 4 && rows.GetString(1) == "table")
+            else if (keys.Count >= 3 && rows.GetString(1) == "table")
             {
                 keys.Sort(static (left, right) => left.Ordinal.CompareTo(right.Ordinal));
                 var members = string.Join(", ", keys.Select(key => FormattableString.Invariant(
                     $"nameof(Object{objectIndex}.Column{key.ColumnId})")));
-                source.Insert(objectStart, FormattableString.Invariant(
-                    $"\n[Object{objectIndex}.CompositePrimaryKey({members})]"));
+                var declaration = FormattableString.Invariant(
+                    $"\n[Object{objectIndex}.CompositePrimaryKey({members})]");
+                source.Insert(objectStart, declaration);
+                keyAttributeOffset = declaration.Length;
                 var fourthParameter = keys.Count == 4 ? ", string fourth" : "";
                 var fourthProperty = keys.Count == 4 ? "\n        public string Fourth { get; } = fourth;" : "";
-                source.Append($$"""
+                if (keys.Count > 4)
+                {
+                    source.Append("""
+
+                            [global::System.AttributeUsage(global::System.AttributeTargets.Class)]
+                            internal sealed class CompositePrimaryKeyAttribute(params string[] members) : global::System.Attribute
+                            {
+                                public global::System.Collections.Generic.IReadOnlyList<string> Members { get; } =
+                                    global::System.Array.AsReadOnly(members);
+                            }
+
+                        """);
+                }
+                else
+                    source.Append($$"""
 
                         [global::System.AttributeUsage(global::System.AttributeTargets.Class)]
                         internal sealed class CompositePrimaryKeyAttribute(string first, string second, string third{{fourthParameter}}) : global::System.Attribute
@@ -99,11 +118,9 @@ public static class SqliteSchemaGenerator
 
                     """);
             }
-            else
-            {
-                for (var index = keys.Count - 1; index >= 0; index--)
-                    source.Insert(keys[index].AttributeOffset, "    [global::System.ComponentModel.DataAnnotations.Key]\n");
-            }
+            // NextORM consumes membership per property; the class annotation preserves catalog order.
+            foreach (var key in keys.OrderByDescending(static key => key.AttributeOffset))
+                source.Insert(key.AttributeOffset + keyAttributeOffset, "    [global::System.ComponentModel.DataAnnotations.Key]\n");
             source.Append("}\n");
         }
         if (hasCompositeKey)
