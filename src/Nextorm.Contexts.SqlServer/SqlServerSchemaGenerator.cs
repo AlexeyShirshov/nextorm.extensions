@@ -16,7 +16,8 @@ public static class SqlServerSchemaGenerator
             SELECT o.object_id, s.name, o.name, c.name, ts.name, t.name,
                    c.is_nullable, c.precision, c.scale, c.max_length,
                    CONVERT(int, COALESCE(ic.key_ordinal, 0)),
-                   CONVERT(bit, CASE WHEN t.is_user_defined = 1 OR t.is_assembly_type = 1 THEN 1 ELSE 0 END)
+                   CONVERT(bit, CASE WHEN t.is_user_defined = 1 OR t.is_assembly_type = 1 THEN 1 ELSE 0 END),
+                   o.type
             FROM sys.objects AS o
             JOIN sys.schemas AS s ON s.schema_id = o.schema_id
             LEFT JOIN sys.columns AS c ON c.object_id = o.object_id
@@ -29,10 +30,13 @@ public static class SqlServerSchemaGenerator
             ORDER BY o.object_id, c.column_id
             """;
         using var reader = command.ExecuteReader();
-        WriteMappings(reader, outputPath);
+        WriteMappings(reader, outputPath, hasCatalogKind: true);
     }
 
-    internal static void WriteMappings(DbDataReader metadata, string outputPath)
+    internal static void WriteMappings(DbDataReader metadata, string outputPath) =>
+        WriteMappings(metadata, outputPath, hasCatalogKind: false);
+
+    private static void WriteMappings(DbDataReader metadata, string outputPath, bool hasCatalogKind)
     {
         var destination = Path.GetFullPath(outputPath);
         if (!destination.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
@@ -53,6 +57,18 @@ public static class SqlServerSchemaGenerator
                     source.Append("}\n");
                 previous = id;
                 columnNumber = 0;
+                if (hasCatalogKind)
+                {
+                    var kind = metadata.GetString(12).TrimEnd() switch
+                    {
+                        "U" => "TABLE",
+                        "V" => "VIEW",
+                        "ET" => "EXTERNAL TABLE",
+                        _ => throw new InvalidDataException("Unexpected SQL Server catalog object kind.")
+                    };
+                    source.Append(CultureInfo.InvariantCulture,
+                        $"\n[global::System.ComponentModel.Description({Literal("SQL Server " + kind)})]");
+                }
                 source.Append(CultureInfo.InvariantCulture,
                     $"\n[global::System.ComponentModel.DataAnnotations.Schema.Table({Literal(name)}, Schema = {Literal(schema)})]\ninternal sealed class Object{++objectNumber}\n{{\n");
             }
