@@ -78,19 +78,23 @@ public static class SqliteSchemaGenerator
                 source.Insert(objectStart, FormattableString.Invariant(
                     $"\n[CompositePrimaryKey(nameof(Object{objectIndex}.Column{keys[0].ColumnId}), nameof(Object{objectIndex}.Column{keys[1].ColumnId}))]"));
             }
-            else if (keys.Count == 3 && rows.GetString(1) == "table")
+            else if (keys.Count is 3 or 4 && rows.GetString(1) == "table")
             {
                 keys.Sort(static (left, right) => left.Ordinal.CompareTo(right.Ordinal));
+                var members = string.Join(", ", keys.Select(key => FormattableString.Invariant(
+                    $"nameof(Object{objectIndex}.Column{key.ColumnId})")));
                 source.Insert(objectStart, FormattableString.Invariant(
-                    $"\n[Object{objectIndex}.CompositePrimaryKey(nameof(Object{objectIndex}.Column{keys[0].ColumnId}), nameof(Object{objectIndex}.Column{keys[1].ColumnId}), nameof(Object{objectIndex}.Column{keys[2].ColumnId}))]"));
-                source.Append("""
+                    $"\n[Object{objectIndex}.CompositePrimaryKey({members})]"));
+                var fourthParameter = keys.Count == 4 ? ", string fourth" : "";
+                var fourthProperty = keys.Count == 4 ? "\n        public string Fourth { get; } = fourth;" : "";
+                source.Append($$"""
 
                         [global::System.AttributeUsage(global::System.AttributeTargets.Class)]
-                        internal sealed class CompositePrimaryKeyAttribute(string first, string second, string third) : global::System.Attribute
+                        internal sealed class CompositePrimaryKeyAttribute(string first, string second, string third{{fourthParameter}}) : global::System.Attribute
                         {
                             public string First { get; } = first;
                             public string Second { get; } = second;
-                            public string Third { get; } = third;
+                            public string Third { get; } = third;{{fourthProperty}}
                         }
 
                     """);
