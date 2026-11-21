@@ -27,9 +27,12 @@ public static class SqliteSchemaGenerator
             """;
         using var rows = objects.ExecuteReader();
         var objectIndex = 0;
+        var hasCompositeKey = false;
         while (rows.Read())
         {
             var name = rows.GetString(0);
+            var objectStart = source.Length;
+            var keys = new List<(long Ordinal, long ColumnId, int AttributeOffset)>();
             source.Append(CultureInfo.InvariantCulture, $$"""
 
                 [global::System.ComponentModel.DataAnnotations.Schema.Table({{Literal(name)}})]
@@ -63,12 +66,37 @@ public static class SqliteSchemaGenerator
                 var initializer = suffix.Length == 0 && type is "string" or "byte[]" ? " = null!;" : "";
                 var keyOrdinal = metadata.GetInt64(4);
                 if (keyOrdinal > 0 && rows.GetString(1) != "view")
-                    source.Append("    [global::System.ComponentModel.DataAnnotations.Key]\n");
+                    keys.Add((keyOrdinal, metadata.GetInt64(0), source.Length));
                 source.Append(CultureInfo.InvariantCulture,
                     $"    [global::System.ComponentModel.DataAnnotations.Schema.Column({Literal(columnName)}, Order = {metadata.GetInt64(0)}, TypeName = {Literal(declared)})]\n" +
                     $"    public {type}{suffix} Column{metadata.GetInt64(0)} {{ get; set; }}{initializer}\n");
             }
+            if (keys.Count == 2 && rows.GetString(1) == "table")
+            {
+                hasCompositeKey = true;
+                keys.Sort(static (left, right) => left.Ordinal.CompareTo(right.Ordinal));
+                source.Insert(objectStart, FormattableString.Invariant(
+                    $"\n[CompositePrimaryKey(nameof(Object{objectIndex}.Column{keys[0].ColumnId}), nameof(Object{objectIndex}.Column{keys[1].ColumnId}))]"));
+            }
+            else
+            {
+                for (var index = keys.Count - 1; index >= 0; index--)
+                    source.Insert(keys[index].AttributeOffset, "    [global::System.ComponentModel.DataAnnotations.Key]\n");
+            }
             source.Append("}\n");
+        }
+        if (hasCompositeKey)
+        {
+            source.Append("""
+
+                [global::System.AttributeUsage(global::System.AttributeTargets.Class)]
+                internal sealed class CompositePrimaryKeyAttribute(string first, string second) : global::System.Attribute
+                {
+                    public string First { get; } = first;
+                    public string Second { get; } = second;
+                }
+
+                """);
         }
         rows.Close();
         transaction.Commit();
