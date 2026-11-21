@@ -78,6 +78,23 @@ public static class SqliteSchemaGenerator
                 source.Insert(objectStart, FormattableString.Invariant(
                     $"\n[CompositePrimaryKey(nameof(Object{objectIndex}.Column{keys[0].ColumnId}), nameof(Object{objectIndex}.Column{keys[1].ColumnId}))]"));
             }
+            else if (keys.Count == 3 && rows.GetString(1) == "table")
+            {
+                keys.Sort(static (left, right) => left.Ordinal.CompareTo(right.Ordinal));
+                source.Insert(objectStart, FormattableString.Invariant(
+                    $"\n[Object{objectIndex}.CompositePrimaryKey(nameof(Object{objectIndex}.Column{keys[0].ColumnId}), nameof(Object{objectIndex}.Column{keys[1].ColumnId}), nameof(Object{objectIndex}.Column{keys[2].ColumnId}))]"));
+                source.Append("""
+
+                        [global::System.AttributeUsage(global::System.AttributeTargets.Class)]
+                        internal sealed class CompositePrimaryKeyAttribute(string first, string second, string third) : global::System.Attribute
+                        {
+                            public string First { get; } = first;
+                            public string Second { get; } = second;
+                            public string Third { get; } = third;
+                        }
+
+                    """);
+            }
             else
             {
                 for (var index = keys.Count - 1; index >= 0; index--)
