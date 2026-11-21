@@ -30,7 +30,7 @@ public static class LiveCatalogGenerator
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT c.COLUMN_NAME, c.COLUMN_TYPE, c.IS_NULLABLE,
-                   CASE WHEN k.COLUMN_NAME IS NULL THEN 0 ELSE 1 END
+                   CASE WHEN k.COLUMN_NAME IS NULL THEN 0 ELSE 1 END, t.TABLE_TYPE
             FROM information_schema.COLUMNS AS c
             JOIN information_schema.TABLES AS t
               ON BINARY t.TABLE_SCHEMA = BINARY c.TABLE_SCHEMA
@@ -40,22 +40,27 @@ public static class LiveCatalogGenerator
              AND BINARY k.TABLE_NAME = BINARY c.TABLE_NAME
              AND BINARY k.COLUMN_NAME = BINARY c.COLUMN_NAME
              AND k.CONSTRAINT_NAME = 'PRIMARY'
+             AND t.TABLE_TYPE = 'BASE TABLE'
             WHERE BINARY c.TABLE_SCHEMA = BINARY @schema
-              AND BINARY c.TABLE_NAME = BINARY @table AND t.TABLE_TYPE = 'BASE TABLE'
+              AND BINARY c.TABLE_NAME = BINARY @table
+              AND (t.TABLE_TYPE = 'BASE TABLE' OR (@allowView = 1 AND t.TABLE_TYPE = 'VIEW'))
             ORDER BY c.ORDINAL_POSITION
             """;
         command.Parameters.AddWithValue("@schema", schema);
         command.Parameters.AddWithValue("@table", table);
+        command.Parameters.AddWithValue("@allowView", isMariaDb ? 0 : 1);
 
         var mysql = new List<MySqlColumn>();
         var mariadb = new List<MariaDbColumn>();
         string? primaryKey = null;
+        var isView = false;
         using var metadata = command.ExecuteReader();
         while (metadata.Read())
         {
             var name = metadata.GetString(0);
             var declaration = metadata.GetString(1);
             var nullable = metadata.GetString(2) == "YES";
+            isView = metadata.GetString(4) == "VIEW";
             if (metadata.GetInt32(3) != 0)
             {
                 if (primaryKey is not null)
@@ -66,6 +71,12 @@ public static class LiveCatalogGenerator
                 mariadb.Add(new(name, declaration, nullable));
             else
                 mysql.Add(new(name, declaration, nullable));
+        }
+
+        if (isView)
+        {
+            MySqlSchemaGenerator.GenerateViewMapping(schema, table, mysql, outputPath);
+            return;
         }
 
         if (primaryKey is null)
