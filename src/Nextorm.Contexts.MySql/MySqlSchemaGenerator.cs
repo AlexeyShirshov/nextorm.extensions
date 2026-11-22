@@ -70,6 +70,7 @@ public static class MySqlSchemaGenerator
             throw new InvalidDataException($"MySQL object {Literal(schema)}.{Literal(table)}: primary key column {Literal(primaryKeyColumn)} was not found.");
         source.Append("}\n");
 
+        RepositoryContextSource.Append(source, "MySqlRepositoryContext", [mappingName]);
         // Validate the complete mapping before opening any destination or temporary file.
         var temporary = Path.Combine(Path.GetDirectoryName(destination)!, $".{Guid.NewGuid():N}.tmp");
         var ownsTemporary = false;

@@ -11,25 +11,8 @@ public static class SqlServerSchemaGenerator
     {
         using var connection = new SqlConnection(connectionString);
         connection.Open();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT o.object_id, s.name, o.name, c.name, ts.name, t.name,
-                   c.is_nullable, c.precision, c.scale, c.max_length,
-                   CONVERT(int, COALESCE(ic.key_ordinal, 0)),
-                   CONVERT(bit, CASE WHEN t.is_user_defined = 1 OR t.is_assembly_type = 1 THEN 1 ELSE 0 END),
-                   o.type
-            FROM sys.objects AS o
-            JOIN sys.schemas AS s ON s.schema_id = o.schema_id
-            LEFT JOIN sys.columns AS c ON c.object_id = o.object_id
-            LEFT JOIN sys.types AS t ON t.user_type_id = c.user_type_id
-            LEFT JOIN sys.schemas AS ts ON ts.schema_id = t.schema_id
-            LEFT JOIN sys.indexes AS i ON i.object_id = o.object_id AND i.is_primary_key = 1 AND o.type = 'U'
-            LEFT JOIN sys.index_columns AS ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
-                AND ic.column_id = c.column_id AND ic.key_ordinal > 0
-            WHERE o.type IN ('U', 'V', 'ET') AND o.is_ms_shipped = 0
-            ORDER BY o.object_id, c.column_id
-            """;
-        using var reader = command.ExecuteReader();
+        using var metadata = SqlServerCatalog.Read(connection);
+        using var reader = metadata.CreateDataReader();
         WriteMappings(reader, outputPath, hasCatalogKind: true);
     }
 
@@ -142,6 +125,8 @@ public static class SqlServerSchemaGenerator
 
                 """);
 
+        RepositoryContextSource.Append(source, "SqlServerRepositoryContext",
+            Enumerable.Range(1, objectNumber).Select(i => FormattableString.Invariant($"Object{i}")));
         var temporary = Path.Combine(Path.GetDirectoryName(destination)!, $".{Guid.NewGuid():N}.tmp");
         var ownsTemporary = false;
         try

@@ -1,6 +1,11 @@
 using MySqlConnector;
 using Nextorm.Contexts.MariaDb;
 using Nextorm.Contexts.MySql;
+using NextORM.Core;
+using NextORM.MySql;
+using NextORM.MariaDb;
+using MySqlDatabaseMappings;
+using MariaDbDatabaseMappings;
 
 namespace Nextorm.Contexts.LiveCatalog;
 
@@ -27,41 +32,22 @@ public static class LiveCatalogGenerator
         if (isMariaDb != (provider == CatalogProvider.MariaDb))
             throw new InvalidDataException($"Connected server does not match the selected provider {provider}.");
 
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT c.COLUMN_NAME, c.COLUMN_TYPE, c.IS_NULLABLE,
-                   COALESCE(k.ORDINAL_POSITION, 0), t.TABLE_TYPE
-            FROM information_schema.COLUMNS AS c
-            JOIN information_schema.TABLES AS t
-              ON BINARY t.TABLE_SCHEMA = BINARY c.TABLE_SCHEMA
-             AND BINARY t.TABLE_NAME = BINARY c.TABLE_NAME
-            LEFT JOIN information_schema.KEY_COLUMN_USAGE AS k
-              ON BINARY k.TABLE_SCHEMA = BINARY c.TABLE_SCHEMA
-             AND BINARY k.TABLE_NAME = BINARY c.TABLE_NAME
-             AND BINARY k.COLUMN_NAME = BINARY c.COLUMN_NAME
-             AND k.CONSTRAINT_NAME = 'PRIMARY'
-             AND t.TABLE_TYPE = 'BASE TABLE'
-            WHERE BINARY c.TABLE_SCHEMA = BINARY @schema
-              AND BINARY c.TABLE_NAME = BINARY @table
-              AND t.TABLE_TYPE IN ('BASE TABLE', 'VIEW')
-            ORDER BY c.ORDINAL_POSITION
-            """;
-        command.Parameters.AddWithValue("@schema", schema);
-        command.Parameters.AddWithValue("@table", table);
+        using DataContext context = isMariaDb
+            ? new MariaDbDataContext(connection, new DataContextBuilder().UseQuotedIdentifiers())
+            : new MySqlDataContext(connection, new DataContextBuilder().UseQuotedIdentifiers());
+        var (kind, columns, keys) = isMariaDb ? ReadMariaDb() : ReadMySql();
+        var isView = kind == "VIEW";
 
         var mysql = new List<MySqlColumn>();
         var mariadb = new List<MariaDbColumn>();
         var mariaDbKeys = new SortedDictionary<int, string>();
         string? primaryKey = null;
-        var isView = false;
-        using var metadata = command.ExecuteReader();
-        while (metadata.Read())
+        foreach (var column in columns.OrderBy(column => column.Ordinal))
         {
-            var name = metadata.GetString(0);
-            var declaration = metadata.GetString(1);
-            var nullable = metadata.GetString(2) == "YES";
-            isView = metadata.GetString(4) == "VIEW";
-            var keyOrdinal = metadata.GetInt32(3);
+            var name = column.Name ?? throw new InvalidDataException("Catalog column name is missing.");
+            var declaration = column.Declaration ?? throw new InvalidDataException("Catalog column type is missing.");
+            var nullable = column.Nullable == "YES";
+            var keyOrdinal = keys.GetValueOrDefault(name);
             if (keyOrdinal != 0)
             {
                 if (isMariaDb)
@@ -102,5 +88,43 @@ public static class LiveCatalogGenerator
         }
 
         MySqlSchemaGenerator.Generate(schema, table, mysql, primaryKey, outputPath);
+
+        (string?, ColumnMetadata[], Dictionary<string, int>) ReadMySql()
+        {
+            var catalog = new MySqlRepositoryContext(context);
+            var tableKind = catalog.Tables.Where(row => row.Column1 == schema && row.Column2 == table).ToList()
+                .SingleOrDefault(row => Matches(row.Column1, row.Column2))?.Column3;
+            if (tableKind is not ("BASE TABLE" or "VIEW"))
+                return (tableKind, [], []);
+            var fields = catalog.Columns.Where(row => row.Column1 == schema && row.Column2 == table).ToList()
+                .Where(row => Matches(row.Column1, row.Column2))
+                .Select(row => new ColumnMetadata(row.Column3, row.Column4, row.Column5, row.Column6)).ToArray();
+            var primary = tableKind == "VIEW" ? [] : catalog.KeyColumnUsage
+                .Where(row => row.Column1 == schema && row.Column2 == table && row.Column4 == "PRIMARY").ToList()
+                .Where(row => Matches(row.Column1, row.Column2))
+                .ToDictionary(row => row.Column3!, row => row.Column5 ?? 0, StringComparer.Ordinal);
+            return (tableKind, fields, primary);
+        }
+
+        (string?, ColumnMetadata[], Dictionary<string, int>) ReadMariaDb()
+        {
+            var catalog = new MariaDbRepositoryContext(context);
+            var tableKind = catalog.Tables.Where(row => row.Column1 == schema && row.Column2 == table).ToList()
+                .SingleOrDefault(row => Matches(row.Column1, row.Column2))?.Column3;
+            if (tableKind is not ("BASE TABLE" or "VIEW"))
+                return (tableKind, [], []);
+            var fields = catalog.Columns.Where(row => row.Column1 == schema && row.Column2 == table).ToList()
+                .Where(row => Matches(row.Column1, row.Column2))
+                .Select(row => new ColumnMetadata(row.Column3, row.Column4, row.Column5, row.Column6)).ToArray();
+            var primary = tableKind == "VIEW" ? [] : catalog.KeyColumnUsage
+                .Where(row => row.Column1 == schema && row.Column2 == table && row.Column4 == "PRIMARY").ToList()
+                .Where(row => Matches(row.Column1, row.Column2))
+                .ToDictionary(row => row.Column3!, row => row.Column5 ?? 0, StringComparer.Ordinal);
+            return (tableKind, fields, primary);
+        }
+
+        bool Matches(string? actualSchema, string? actualTable) => actualSchema == schema && actualTable == table;
     }
+
+    private sealed record ColumnMetadata(string? Name, string? Declaration, string? Nullable, int? Ordinal);
 }

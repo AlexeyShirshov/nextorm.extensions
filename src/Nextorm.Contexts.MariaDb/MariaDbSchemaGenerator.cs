@@ -115,6 +115,7 @@ public static class MariaDbSchemaGenerator
                 """);
         }
 
+        RepositoryContextSource.Append(source, "MariaDbRepositoryContext", [className]);
         var temporary = Path.Combine(Path.GetDirectoryName(destination)!, $".{Guid.NewGuid():N}.tmp");
         var ownsTemporary = false;
         try
