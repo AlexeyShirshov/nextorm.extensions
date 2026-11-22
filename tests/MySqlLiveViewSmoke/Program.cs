@@ -11,6 +11,7 @@ using var command = connection.CreateCommand();
 command.CommandText = """
     CREATE DATABASE step11_fixture;
     CREATE TABLE step11_fixture.ordinary (id bigint unsigned PRIMARY KEY, label varchar(40));
+    CREATE TABLE step11_fixture.keyless (label varchar(40) NOT NULL, quantity int NULL);
     CREATE VIEW step11_fixture.projected AS SELECT label AS description, id AS identifier FROM step11_fixture.ordinary;
     """;
 command.ExecuteNonQuery();
@@ -32,7 +33,16 @@ try
     Require(table.Contains("DataAnnotations.Key]", StringComparison.Ordinal) &&
         !table.Contains("Description(\"MySQL VIEW\")", StringComparison.Ordinal), "live keyed table behavior");
     Console.WriteLine("Case 2 complete: live MySQL base table retains declared key.");
-    Console.WriteLine("Selected: 2; completed: 2; failed: 0; skipped: 0.");
+
+    var keylessPath = Path.Combine(Path.GetDirectoryName(args[1])!, "Keyless.cs");
+    LiveCatalogGenerator.Generate(CatalogProvider.MySql, settings.ConnectionString, "step11_fixture", "keyless", keylessPath);
+    var keyless = File.ReadAllText(keylessPath);
+    Require(keyless.Contains("Table(\"keyless\", Schema = \"step11_fixture\")", StringComparison.Ordinal), "keyless table identity");
+    Require(keyless.Contains("Column(\"label\", TypeName = \"varchar(40)\")]\n    public string Column1", StringComparison.Ordinal), "keyless label");
+    Require(keyless.Contains("Column(\"quantity\", TypeName = \"int\")]\n    public int? Column2", StringComparison.Ordinal), "keyless quantity");
+    Require(!keyless.Contains("DataAnnotations.Key]", StringComparison.Ordinal), "invented table key");
+    Console.WriteLine("Case 3 complete: live MySQL base table without a primary key retains its columns.");
+    Console.WriteLine("Selected: 3; completed: 3; failed: 0; skipped: 0.");
 }
 finally
 {

@@ -92,14 +92,15 @@ public static class LiveCatalogGenerator
             return;
         }
 
+        if (mysql.Count == 0)
+            throw new InvalidDataException("MySql live catalog mode requires a visible ordinary view or base table.");
+
         if (isView)
         {
             MySqlSchemaGenerator.GenerateViewMapping(schema, table, mysql, outputPath);
             return;
         }
 
-        if (primaryKey is null)
-            throw new InvalidDataException($"{provider} live catalog mode requires a visible ordinary table with a single-column primary key.");
         MySqlSchemaGenerator.Generate(schema, table, mysql, primaryKey, outputPath);
     }
 }
