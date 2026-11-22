@@ -1,0 +1,50 @@
+name: Security and quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            10.0.x
+            11.0.x
+      - name: Build and audit NuGet dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          for project in src/Generators/*/*.csproj src/RepositoryContext/*/*.csproj tests/*/*.csproj; do
+            dotnet build "$project" -c Release -warnaserror -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=moderate
+          done
+      - name: Run SQLite smoke checks
+        run: |
+          dotnet run --project tests/SqliteSmoke/SqliteSmoke.csproj -c Release -f net10.0 --no-build
+          dotnet run --project tests/SqliteSmoke/SqliteSmoke.csproj -c Release -f net11.0 --no-build
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: csharp
+          build-mode: none
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v4
