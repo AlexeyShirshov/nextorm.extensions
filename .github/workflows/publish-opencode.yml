@@ -1,0 +1,56 @@
+name: Publish Nextorm.Extensions.OpenCode
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: NuGet package version
+        required: true
+        default: '1.0.0'
+        type: string
+
+jobs:
+  pack:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 11.0.x
+      - name: Pack
+        env:
+          PACKAGE_VERSION: ${{ inputs.version }}
+        run: dotnet pack src/RepositoryContext/Nextorm.Extensions.OpenCode/Nextorm.Extensions.OpenCode.csproj -c Release -p:PackageVersion="$PACKAGE_VERSION" -o ./nupkgs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opencode-nupkg
+          path: nupkgs/*.nupkg
+          if-no-files-found: error
+
+  publish:
+    needs: pack
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: opencode-nupkg
+          path: nupkgs
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 11.0.x
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+      - name: Publish to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push ./nupkgs/*.nupkg --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
