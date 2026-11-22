@@ -6,6 +6,7 @@ try
 {
     var database = Path.Combine(directory.FullName, "sample.db");
     var output = Path.Combine(directory.FullName, "Mappings.cs");
+    File.WriteAllText(Path.Combine(directory.FullName, "Nextorm.Extensions.SmokeFixture.csproj"), "<Project />");
     using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
     {
         DataSource = database,
@@ -20,6 +21,8 @@ try
         """;
     command.ExecuteNonQuery();
     SqliteSchemaGenerator.Generate(database, output);
+    if (!File.ReadAllText(output).Contains("class SmokeFixtureRepositoryContext", StringComparison.Ordinal))
+        throw new InvalidOperationException("Expected the context name to come from the project, not the database.");
     var source = File.ReadAllText(output);
     foreach (var token in new[] { "Table(\"keyed\")", "Table(\"keyless\")", "Table(\"readable\")",
              "Column(\"id\"", "Column(\"qty\"", "Column(\"twice\"", "Column(\"label\"" })

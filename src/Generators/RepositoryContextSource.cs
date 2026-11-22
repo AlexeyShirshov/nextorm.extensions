@@ -5,11 +5,11 @@ namespace Nextorm.Contexts;
 
 internal static class RepositoryContextSource
 {
-    internal static void Append(StringBuilder source, string contextName, IEnumerable<string> mappings)
+    internal static void Append(StringBuilder source, string contextName, IEnumerable<string> mappings, bool publicContext = false)
     {
         source.Append(CultureInfo.InvariantCulture, $$"""
 
-            internal sealed class {{contextName}}(global::NextORM.Core.IDataContext dataContext)
+            {{(publicContext ? "public" : "internal")}} sealed class {{contextName}}(global::NextORM.Core.IDataContext dataContext)
                 : global::NextORM.Core.Repositories.RepositoryContext(dataContext)
             {
             """);

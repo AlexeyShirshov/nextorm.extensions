@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Nextorm.Contexts.MySql/Nextorm.Contexts.MySql.csproj" />
+    <ProjectReference Include="../../src/Generators/Nextorm.Contexts.MySql/Nextorm.Contexts.MySql.csproj" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,5 @@
 #!/usr/bin/env dotnet
-#:include ../src/RepositoryContextSource.cs
+#:include ../src/Generators/RepositoryContextSource.cs
 
 using System.Text;
 using Nextorm.Contexts;
@@ -48,5 +48,5 @@ void Generate(string provider, string schema, string catalog)
         }
         source.Append("}\n");
     }
-    File.WriteAllText(Path.Combine(root, "src", $"Nextorm.Contexts.{provider}", "Generated", "RepositoryContext.cs"), source.ToString());
+    File.WriteAllText(Path.Combine(root, "src", "Generators", $"Nextorm.Contexts.{provider}", "Generated", "RepositoryContext.cs"), source.ToString());
 }
