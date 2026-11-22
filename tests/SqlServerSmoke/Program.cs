@@ -47,6 +47,21 @@ catch (InvalidDataException exception) when (
 Console.WriteLine("Case 2 complete: reason-specific refusal, byte-identical prior output.");
 Console.WriteLine("Selected: 2; completed: 2; failed: 0; skipped: 0.");
 
+catalog.Clear();
+catalog.Rows.Add(1, "dbo", "composite", "first_column", "sys", "int", false, (byte)10, (byte)0, (short)4, 2, false);
+catalog.Rows.Add(1, "dbo", "composite", "payload", "sys", "int", false, (byte)10, (byte)0, (short)4, 0, false);
+catalog.Rows.Add(1, "dbo", "composite", "last_column", "sys", "int", false, (byte)10, (byte)0, (short)4, 1, false);
+catalog.Rows.Add(2, "dbo", "after_composite", "id", "sys", "int", false, (byte)10, (byte)0, (short)4, 1, false);
+var compositePath = Path.ChangeExtension(args[0], ".composite.cs");
+using (var reader = catalog.CreateDataReader())
+    SqlServerSchemaGenerator.WriteMappings(reader, compositePath);
+var composite = File.ReadAllText(compositePath);
+const string key = "CompositePrimaryKey(nameof(Object1.Column3), nameof(Object1.Column1))";
+Require(composite.Split("[CompositePrimaryKey(", StringSplitOptions.None).Length == 2 &&
+    composite.Contains($"[{key}]\n[global::System.ComponentModel.DataAnnotations.Schema.Table(\"composite\"", StringComparison.Ordinal),
+    "Expected exactly one ordered composite primary key on the composite table");
+Console.WriteLine("Composite scenario: selected 1; completed 1; failed 0; skipped 0.");
+
 string Body(string name)
 {
     var start = source.IndexOf($"Table(\"{name}\", Schema = \"dbo\")", StringComparison.Ordinal);

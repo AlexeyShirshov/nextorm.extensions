@@ -46,6 +46,9 @@ public static class SqlServerSchemaGenerator
         int? previous = null;
         var objectNumber = 0;
         var columnNumber = 0;
+        var attributeOffset = 0;
+        var keyMembers = new SortedDictionary<int, int>();
+        var hasCompositeKey = false;
         while (metadata.Read())
         {
             var id = metadata.GetInt32(0);
@@ -54,9 +57,10 @@ public static class SqlServerSchemaGenerator
             if (id != previous)
             {
                 if (previous.HasValue)
-                    source.Append("}\n");
+                    FinishObject();
                 previous = id;
                 columnNumber = 0;
+                attributeOffset = source.Length;
                 if (hasCatalogKind)
                 {
                     var kind = metadata.GetString(12).TrimEnd() switch
@@ -113,14 +117,30 @@ public static class SqlServerSchemaGenerator
             var nullable = metadata.GetBoolean(6);
             var suffix = nullable ? "?" : "";
             var initializer = !nullable && type is "string" or "byte[]" ? " = null!;" : "";
-            if (metadata.GetInt32(10) > 0)
+            var keyOrdinal = metadata.GetInt32(10);
+            if (keyOrdinal > 0)
+            {
+                keyMembers.Add(keyOrdinal, columnNumber + 1);
                 source.Append("    [global::System.ComponentModel.DataAnnotations.Key]\n");
+            }
             source.Append(CultureInfo.InvariantCulture,
                 $"    [global::System.ComponentModel.DataAnnotations.Schema.Column({Literal(column)}, TypeName = {Literal(declaration)})]\n    public {type}{suffix} Column{++columnNumber} {{ get; set; }}{initializer}\n");
         }
 
         if (previous.HasValue)
-            source.Append("}\n");
+            FinishObject();
+
+        if (hasCompositeKey)
+            source.Append("""
+
+                [global::System.AttributeUsage(global::System.AttributeTargets.Class)]
+                internal sealed class CompositePrimaryKeyAttribute(params string[] members) : global::System.Attribute
+                {
+                    public global::System.Collections.Generic.IReadOnlyList<string> Members { get; } =
+                        global::System.Array.AsReadOnly(members);
+                }
+
+                """);
 
         var temporary = Path.Combine(Path.GetDirectoryName(destination)!, $".{Guid.NewGuid():N}.tmp");
         var ownsTemporary = false;
@@ -138,6 +158,19 @@ public static class SqlServerSchemaGenerator
         {
             if (ownsTemporary)
                 File.Delete(temporary);
+        }
+
+        void FinishObject()
+        {
+            if (keyMembers.Count > 1)
+            {
+                var members = string.Join(", ", keyMembers.Values.Select(member =>
+                    FormattableString.Invariant($"nameof(Object{objectNumber}.Column{member})")));
+                source.Insert(attributeOffset, $"\n[CompositePrimaryKey({members})]");
+                hasCompositeKey = true;
+            }
+            keyMembers.Clear();
+            source.Append("}\n");
         }
     }
 
