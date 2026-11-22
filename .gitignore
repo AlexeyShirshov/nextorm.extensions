@@ -1,2 +1,6 @@
 **/bin/
 **/obj/
+/.pdca/*
+!/.pdca/status/
+/.pdca/status/*
+!/.pdca/status/*.md
