@@ -58,9 +58,8 @@ public static class MariaDbSchemaGenerator
         if (kind == MariaDbObjectKind.View)
             source.Append("\n[global::System.ComponentModel.Description(\"MariaDB VIEW\")]");
         var className = kind == MariaDbObjectKind.View ? "MappedView" : "MappedTable";
-        var attributeOffset = source.Length;
         source.Append(CultureInfo.InvariantCulture,
-            $"\n[global::System.ComponentModel.DataAnnotations.Schema.Table({Literal(table)}, Schema = {Literal(schema)})]\ninternal sealed class {className}\n{{\n");
+            $"\n[global::System.ComponentModel.DataAnnotations.Schema.Table({Literal(table)}, Schema = {Literal(schema)})]\ninternal class {className}\n{{\n");
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var ordinal = 0;
         foreach (var column in columns)
@@ -98,23 +97,6 @@ public static class MariaDbSchemaGenerator
             if (keyProperties[index] is null)
                 throw new InvalidDataException($"MariaDB object {objectName}: primary key column {Literal(primaryKeyColumns[index])} was not found.");
         source.Append("}\n");
-        if (keyProperties.Length > 1)
-        {
-            var members = string.Join(", ", keyProperties.Select(property =>
-                FormattableString.Invariant($"nameof(MappedTable.Column{property})")));
-            source.Insert(attributeOffset, $"\n[CompositePrimaryKey({members})]");
-            source.Append("""
-
-                [global::System.AttributeUsage(global::System.AttributeTargets.Class)]
-                internal sealed class CompositePrimaryKeyAttribute(params string[] members) : global::System.Attribute
-                {
-                    public global::System.Collections.Generic.IReadOnlyList<string> Members { get; } =
-                        global::System.Array.AsReadOnly(members);
-                }
-
-                """);
-        }
-
         RepositoryContextSource.Append(source, "MariaDbRepositoryContext", [className]);
         var temporary = Path.Combine(Path.GetDirectoryName(destination)!, $".{Guid.NewGuid():N}.tmp");
         var ownsTemporary = false;

@@ -15,13 +15,31 @@ public static class SqliteSchemaGenerator
     public static void GenerateForProject(string databasePath, string outputPath, string? databaseVersion = null) =>
         GenerateForTargetProject(databasePath, outputPath, databaseVersion);
 
+    public static void GenerateForProject(string databasePath, string outputPath, string? databaseVersion, string contextName) =>
+        GenerateForTargetProject(databasePath, outputPath, databaseVersion, contextName);
+
+    public static void Scaffold(string databasePath, string outputPath, string targetNamespace, string contextName, string? databaseVersion = null) =>
+        Generate(databasePath, outputPath, contextName, databaseVersion, targetNamespace, splitModels: true);
+
+    public static void Scaffold(string databasePath, string outputPath, string targetNamespace, string contextName,
+        string? databaseVersion, global::Nextorm.Scaffold.IScaffoldInterceptor interceptor, bool singleFile = false) =>
+        Generate(databasePath, outputPath, contextName, databaseVersion, targetNamespace, !singleFile,
+            interceptor.IncludeObject, interceptor.GetEntityName, interceptor.GetPropertyName, interceptor.GetClrType);
+
+    public static void Scaffold(string databasePath, string outputPath, string targetNamespace, string contextName,
+        string? databaseVersion, Func<string, bool>? include, Func<string, string>? entityName,
+        Func<string, string, string>? propertyName, Func<string, string, string?>? clrType) =>
+        Generate(databasePath, outputPath, contextName, databaseVersion, targetNamespace, true, include, entityName, propertyName, clrType);
+
     public static void Generate(string databasePath, string outputPath, string contextName) =>
         Generate(databasePath, outputPath, contextName, databaseVersion: null);
 
     public static void Generate(string databasePath, string outputPath, string contextName, string? databaseVersion)
         => Generate(databasePath, outputPath, contextName, databaseVersion, "DatabaseMappings");
 
-    private static void Generate(string databasePath, string outputPath, string contextName, string? databaseVersion, string targetNamespace)
+    private static void Generate(string databasePath, string outputPath, string contextName, string? databaseVersion, string targetNamespace, bool splitModels = false,
+        Func<string, bool>? include = null, Func<string, string>? renameEntity = null,
+        Func<string, string, string>? renameProperty = null, Func<string, string, string?>? clrType = null)
     {
         using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {
@@ -45,28 +63,32 @@ public static class SqliteSchemaGenerator
             .Where(row => !row.Column1.StartsWith("sqlite_", StringComparison.Ordinal))
             .OrderBy(row => row.Column1, StringComparer.Ordinal);
         var entityNames = new List<string>();
+        var excluded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var usedEntityNames = new HashSet<string>(StringComparer.Ordinal)
         {
-            contextName, "Repository", "CompositePrimaryKey", "CompositePrimaryKeyAttribute"
+            contextName, "Repository"
         };
-        var hasCompositeKey = false;
         var entities = new Dictionary<string, (string Name, Dictionary<string, string> Properties, string[] Key, HashSet<string> Used, int Offset)>(StringComparer.OrdinalIgnoreCase);
         foreach (var row in rows)
         {
             var name = row.Column1;
-            var entityName = AllocateIdentifier(name, "Entity", usedEntityNames);
+            if (include is not null && !include(name))
+            {
+                excluded.Add(name);
+                continue;
+            }
+            var entityName = AllocateIdentifier(renameEntity?.Invoke(name) ?? name, "Entity", usedEntityNames);
             entityNames.Add(entityName);
             var usedPropertyNames = new HashSet<string>(StringComparer.Ordinal)
             {
-                entityName, "CompositePrimaryKey", "CompositePrimaryKeyAttribute"
+                entityName
             };
-            var objectStart = source.Length;
             var properties = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var keys = new List<(long Ordinal, string PropertyName, int AttributeOffset)>();
             source.Append(CultureInfo.InvariantCulture, $$"""
 
                 [global::System.ComponentModel.DataAnnotations.Schema.Table({{Literal(name)}})]
-                public sealed class {{entityName}}
+                public class {{entityName}}
                 {
 
                 """);
@@ -79,18 +101,19 @@ public static class SqliteSchemaGenerator
             foreach (var column in columns.OrderBy(column => column.Column0))
             {
                 var columnName = column.Column1;
-                var propertyName = AllocateIdentifier(columnName, "Column", usedPropertyNames);
+                var propertyName = AllocateIdentifier(renameProperty?.Invoke(name, columnName) ?? columnName, "Column", usedPropertyNames);
                 properties.Add(columnName, propertyName);
                 var declared = column.Column2;
-                var type = declared.Trim().ToUpperInvariant() switch
+                var type = clrType?.Invoke(columnName, declared) ?? (declared.Trim().ToUpperInvariant() switch
                 {
                     "INTEGER" or "INT" or "BIGINT" or "SMALLINT" or "TINYINT" => "long",
                     "REAL" or "DOUBLE" or "DOUBLE PRECISION" or "FLOAT" => "double",
-                    "TEXT" => "string",
+                    "TEXT" or "UUID" => "string",
+                    "DATETIME" => "global::System.DateTime",
                     "BLOB" => "byte[]",
                     _ => throw new InvalidDataException(
                         $"SQLite object {Literal(name)}, column {Literal(columnName)}: unsupported schema type {Literal(declared)}.")
-                };
+                });
                 // SQLite permits NULL in some declared primary keys; do not infer NOT NULL from pk.
                 var suffix = column.Column3 == 0 ? "?" : "";
                 var initializer = suffix.Length == 0 && type is "string" or "byte[]" ? " = null!;" : "";
@@ -101,56 +124,8 @@ public static class SqliteSchemaGenerator
                     $"    [global::System.ComponentModel.DataAnnotations.Schema.Column({Literal(columnName)}, Order = {column.Column0}, TypeName = {Literal(declared)})]\n" +
                     $"    public {type}{suffix} {propertyName} {{ get; set; }}{initializer}\n");
             }
-            var keyAttributeOffset = 0;
-            if (keys.Count == 2 && row.Column2 == "table")
-            {
-                hasCompositeKey = true;
-                keys.Sort(static (left, right) => left.Ordinal.CompareTo(right.Ordinal));
-                var declaration = FormattableString.Invariant(
-                    $"\n[CompositePrimaryKey(nameof({entityName}.{keys[0].PropertyName}), nameof({entityName}.{keys[1].PropertyName}))]");
-                source.Insert(objectStart, declaration);
-                keyAttributeOffset = declaration.Length;
-            }
-            else if (keys.Count >= 3 && row.Column2 == "table")
-            {
-                keys.Sort(static (left, right) => left.Ordinal.CompareTo(right.Ordinal));
-                var members = string.Join(", ", keys.Select(key => FormattableString.Invariant(
-                    $"nameof({entityName}.{key.PropertyName})")));
-                var declaration = FormattableString.Invariant(
-                    $"\n[{entityName}.CompositePrimaryKey({members})]");
-                source.Insert(objectStart, declaration);
-                keyAttributeOffset = declaration.Length;
-                var fourthParameter = keys.Count == 4 ? ", string fourth" : "";
-                var fourthProperty = keys.Count == 4 ? "\n        public string Fourth { get; } = fourth;" : "";
-                if (keys.Count > 4)
-                {
-                    source.Append("""
-
-                            [global::System.AttributeUsage(global::System.AttributeTargets.Class)]
-                            internal sealed class CompositePrimaryKeyAttribute(params string[] members) : global::System.Attribute
-                            {
-                                public global::System.Collections.Generic.IReadOnlyList<string> Members { get; } =
-                                    global::System.Array.AsReadOnly(members);
-                            }
-
-                        """);
-                }
-                else
-                    source.Append($$"""
-
-                        [global::System.AttributeUsage(global::System.AttributeTargets.Class)]
-                        internal sealed class CompositePrimaryKeyAttribute(string first, string second, string third{{fourthParameter}}) : global::System.Attribute
-                        {
-                            public string First { get; } = first;
-                            public string Second { get; } = second;
-                            public string Third { get; } = third;{{fourthProperty}}
-                        }
-
-                    """);
-            }
-            // NextORM consumes membership per property; the class annotation preserves catalog order.
             foreach (var key in keys.OrderByDescending(static key => key.AttributeOffset))
-                source.Insert(key.AttributeOffset + keyAttributeOffset, "    [global::System.ComponentModel.DataAnnotations.Key]\n");
+                source.Insert(key.AttributeOffset, "    [global::System.ComponentModel.DataAnnotations.Key]\n");
             entities.Add(name, (entityName, properties, keys.OrderBy(key => key.Ordinal).Select(key => key.PropertyName).ToArray(),
                 usedPropertyNames, source.Length));
             source.Append("}\n");
@@ -175,6 +150,8 @@ public static class SqliteSchemaGenerator
             foreach (var key in foreignKeys.GroupBy(column => column.Id))
             {
                 var columns = key.ToArray();
+                if (excluded.Contains(columns[0].Table))
+                    continue;
                 if (!entities.TryGetValue(columns[0].Table, out var principal))
                     throw new InvalidDataException($"Foreign key {key.Key} on {table} references missing table {columns[0].Table}.");
 
@@ -187,24 +164,16 @@ public static class SqliteSchemaGenerator
             }
             source.Insert(entity.Offset, navigations.ToString());
         }
-        if (hasCompositeKey)
-        {
-            source.Append("""
-
-                [global::System.AttributeUsage(global::System.AttributeTargets.Class)]
-                internal sealed class CompositePrimaryKeyAttribute(string first, string second) : global::System.Attribute
-                {
-                    public string First { get; } = first;
-                    public string Second { get; } = second;
-                }
-
-                """);
-        }
         RepositoryContextSource.Append(source, contextName, entityNames, publicContext: true);
         transaction.Commit();
 
         // Publish one complete file only after every column has been validated.
         var destination = Path.GetFullPath(outputPath);
+        if (splitModels)
+        {
+            RepositoryContextFiles.Split(source.ToString(), destination);
+            return;
+        }
         if (!destination.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Output must be a C# source file.", nameof(outputPath));
         var temporary = Path.Combine(Path.GetDirectoryName(destination)!, $".{Guid.NewGuid():N}.tmp");
@@ -222,7 +191,7 @@ public static class SqliteSchemaGenerator
     }
 
 
-    private static void GenerateForTargetProject(string databasePath, string outputPath, string? databaseVersion)
+    private static void GenerateForTargetProject(string databasePath, string outputPath, string? databaseVersion, string? contextName = null)
     {
         for (var directory = new FileInfo(outputPath).Directory; directory is not null; directory = directory.Parent)
         {
@@ -234,8 +203,8 @@ public static class SqliteSchemaGenerator
 
             var projectName = Path.GetFileNameWithoutExtension(projects[0].Name);
             var name = projectName[(projectName.LastIndexOf('.') + 1)..];
-            var contextName = AllocateIdentifier(name, "Project", new(StringComparer.Ordinal)) + "RepositoryContext";
-            Generate(databasePath, outputPath, contextName, databaseVersion, projectName);
+            var resolvedName = contextName ?? AllocateIdentifier(name, "Project", new(StringComparer.Ordinal)) + "RepositoryContext";
+            Generate(databasePath, outputPath, resolvedName, databaseVersion, projectName);
             return;
         }
 

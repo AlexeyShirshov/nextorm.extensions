@@ -56,10 +56,10 @@ var compositePath = Path.ChangeExtension(args[0], ".composite.cs");
 using (var reader = catalog.CreateDataReader())
     SqlServerSchemaGenerator.WriteMappings(reader, compositePath);
 var composite = File.ReadAllText(compositePath);
-const string key = "CompositePrimaryKey(nameof(Object1.Column3), nameof(Object1.Column1))";
-Require(composite.Split("[CompositePrimaryKey(", StringSplitOptions.None).Length == 2 &&
-    composite.Contains($"[{key}]\n[global::System.ComponentModel.DataAnnotations.Schema.Table(\"composite\"", StringComparison.Ordinal),
-    "Expected exactly one ordered composite primary key on the composite table");
+var compositeBody = composite[composite.IndexOf("Table(\"composite\"", StringComparison.Ordinal)..].Split("\n}")[0];
+Require(compositeBody.Split("DataAnnotations.Key]", StringSplitOptions.None).Length == 3 &&
+    !composite.Contains("CompositePrimaryKey", StringComparison.Ordinal),
+    "Expected two standard key annotations on the composite table");
 Console.WriteLine("Composite scenario: selected 1; completed 1; failed 0; skipped 0.");
 
 string Body(string name)

@@ -17,6 +17,20 @@ public enum CatalogProvider
 
 public static class LiveCatalogGenerator
 {
+    public static void ScaffoldMySql(string connectionString, string schema, string outputPath,
+        string targetNamespace, string contextName) =>
+        MySqlSchemaGenerator.Scaffold(connectionString, schema, outputPath, targetNamespace, contextName);
+
+    public static void ScaffoldMySql(string connectionString, string schema, string outputPath,
+        string targetNamespace, string contextName, global::Nextorm.Scaffold.IScaffoldInterceptor interceptor, bool singleFile = false) =>
+        MySqlSchemaGenerator.Scaffold(connectionString, schema, outputPath, targetNamespace, contextName, interceptor, singleFile);
+
+    public static void ScaffoldMySql(string connectionString, string schema, string outputPath,
+        string targetNamespace, string contextName, Func<string, bool>? include, Func<string, string>? entityName,
+        Func<string, string, string>? propertyName, Func<string, string, string?>? clrType, bool singleFile = false) =>
+        MySqlSchemaGenerator.Scaffold(connectionString, schema, outputPath, targetNamespace, contextName,
+            include, entityName, propertyName, clrType, singleFile);
+
     // Connection settings and the output path are supplied by the trusted caller.
     public static void Generate(CatalogProvider provider, string connectionString,
         string schema, string table, string outputPath)

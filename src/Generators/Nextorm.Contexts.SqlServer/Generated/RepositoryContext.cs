@@ -2,7 +2,7 @@
 #nullable enable
 namespace SqlServerDatabaseMappings;
 
-internal sealed class SqlServerRepositoryContext(global::NextORM.Core.IDataContext dataContext)
+internal class SqlServerRepositoryContext(global::NextORM.Core.IDataContext dataContext)
     : global::NextORM.Core.Repositories.RepositoryContext(dataContext)
 {
     public global::NextORM.Core.IRepository<SysObject> SysObject => Repository<SysObject>();
@@ -14,7 +14,7 @@ internal sealed class SqlServerRepositoryContext(global::NextORM.Core.IDataConte
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("objects", Schema = "sys")]
-internal sealed class SysObject
+internal class SysObject
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("object_id")]
     public int ObjectId { get; set; }
@@ -29,7 +29,7 @@ internal sealed class SysObject
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("schemas", Schema = "sys")]
-internal sealed class SysSchema
+internal class SysSchema
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("schema_id")]
     public int SchemaId { get; set; }
@@ -38,7 +38,7 @@ internal sealed class SysSchema
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("columns", Schema = "sys")]
-internal sealed class SysColumn
+internal class SysColumn
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("object_id")]
     public int ObjectId { get; set; }
@@ -59,7 +59,7 @@ internal sealed class SysColumn
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("types", Schema = "sys")]
-internal sealed class SysType
+internal class SysType
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("user_type_id")]
     public int UserTypeId { get; set; }
@@ -74,7 +74,7 @@ internal sealed class SysType
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("indexes", Schema = "sys")]
-internal sealed class SysIndex
+internal class SysIndex
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("object_id")]
     public int ObjectId { get; set; }
@@ -85,7 +85,7 @@ internal sealed class SysIndex
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("index_columns", Schema = "sys")]
-internal sealed class SysIndexColumn
+internal class SysIndexColumn
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("object_id")]
     public int ObjectId { get; set; }

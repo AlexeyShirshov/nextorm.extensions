@@ -62,7 +62,7 @@ public static class ClickHouseSchemaGenerator
         if (isView)
             source.Append("\n[global::System.ComponentModel.Description(\"ClickHouse VIEW\")]");
         source.Append(CultureInfo.InvariantCulture,
-            $"\n[global::System.ComponentModel.DataAnnotations.Schema.Table({Literal(table)}, Schema = {Literal(database)})]\ninternal sealed class {className}\n{{\n");
+            $"\n[global::System.ComponentModel.DataAnnotations.Schema.Table({Literal(table)}, Schema = {Literal(database)})]\ninternal class {className}\n{{\n");
         var names = new HashSet<string>(StringComparer.Ordinal);
         var ordinal = 0;
         foreach (var column in columns)

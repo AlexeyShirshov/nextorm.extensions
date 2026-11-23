@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageVersion>1.0.0</PackageVersion>
+    <Description>Public customization contract for Nextorm schema scaffolding.</Description>
+    <RepositoryUrl>https://github.com/AlexeyShirshov/nextorm.extensions</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>nextorm;scaffold</PackageTags>
+  </PropertyGroup>
+</Project>

@@ -22,7 +22,7 @@ foreach (var (name, view, keys) in new[]
         if (!source.Contains($"Table(\"{name}\", Schema = \"nextorm_s23\")", StringComparison.Ordinal)
             || source.Contains("Description(\"MariaDB VIEW\")", StringComparison.Ordinal) != view
             || source.Split("DataAnnotations.Key]", StringSplitOptions.None).Length - 1 != keys
-            || (keys == 2 && !source.Contains("CompositePrimaryKey(nameof(MappedTable.Column3), nameof(MappedTable.Column1))", StringComparison.Ordinal)))
+            || source.Contains("CompositePrimaryKey", StringComparison.Ordinal))
             throw new InvalidDataException("Generated object kind or primary key did not match the fixture.");
         Console.WriteLine($"{name}: completed");
     }

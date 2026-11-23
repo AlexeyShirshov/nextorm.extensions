@@ -2,7 +2,7 @@
 #nullable enable
 namespace PostgreSqlDatabaseMappings;
 
-internal sealed class PostgreSqlRepositoryContext(global::NextORM.Core.IDataContext dataContext)
+internal class PostgreSqlRepositoryContext(global::NextORM.Core.IDataContext dataContext)
     : global::NextORM.Core.Repositories.RepositoryContext(dataContext)
 {
     public global::NextORM.Core.IRepository<PgClass> PgClass => Repository<PgClass>();
@@ -13,7 +13,7 @@ internal sealed class PostgreSqlRepositoryContext(global::NextORM.Core.IDataCont
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("pg_class", Schema = "pg_catalog")]
-internal sealed class PgClass
+internal class PgClass
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("oid")]
     public uint Oid { get; set; }
@@ -26,7 +26,7 @@ internal sealed class PgClass
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("pg_namespace", Schema = "pg_catalog")]
-internal sealed class PgNamespace
+internal class PgNamespace
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("oid")]
     public uint Oid { get; set; }
@@ -35,7 +35,7 @@ internal sealed class PgNamespace
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("pg_attribute", Schema = "pg_catalog")]
-internal sealed class PgAttribute
+internal class PgAttribute
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("attrelid")]
     public uint Attrelid { get; set; }
@@ -54,7 +54,7 @@ internal sealed class PgAttribute
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("pg_type", Schema = "pg_catalog")]
-internal sealed class PgType
+internal class PgType
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("oid")]
     public uint Oid { get; set; }
@@ -65,7 +65,7 @@ internal sealed class PgType
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("pg_index", Schema = "pg_catalog")]
-internal sealed class PgIndex
+internal class PgIndex
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("indrelid")]
     public uint Indrelid { get; set; }

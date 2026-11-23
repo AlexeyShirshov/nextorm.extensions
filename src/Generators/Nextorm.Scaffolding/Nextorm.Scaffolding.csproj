@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Nextorm.Contexts.Sqlite/Nextorm.Contexts.Sqlite.csproj" />
+    <ProjectReference Include="../Nextorm.Contexts.PostgreSql/Nextorm.Contexts.PostgreSql.csproj" />
+    <ProjectReference Include="../Nextorm.Contexts.MySql/Nextorm.Contexts.MySql.csproj" />
+    <ProjectReference Include="../Nextorm.Contexts.SqlServer/Nextorm.Contexts.SqlServer.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackAsTool>true</PackAsTool>
+    <PublishAot Condition="'$(PublishAot)' == ''">true</PublishAot>
+    <ToolPackageRuntimeIdentifiers Condition="'$(ToolPackageRuntimeIdentifiers)' == '' and '$(PublishAot)' == 'true'">linux-x64</ToolPackageRuntimeIdentifiers>
+    <DefineConstants Condition="'$(PublishAot)' == 'true'">$(DefineConstants);NATIVE_AOT</DefineConstants>
+    <ToolCommandName>dotnet-nextorm</ToolCommandName>
+    <PackageId>Nextorm.Scaffold</PackageId>
+    <PackageVersion>1.0.0</PackageVersion>
+    <Description>Scaffold Nextorm repository contexts from existing databases.</Description>
+    <RepositoryUrl>https://github.com/AlexeyShirshov/nextorm.extensions</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>nextorm;scaffold;dotnet-tool</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="3.0.0" />
+    <ProjectReference Include="../../Generators/Nextorm.Scaffolding/Nextorm.Scaffolding.csproj" />
+  </ItemGroup>
+</Project>

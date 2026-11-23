@@ -34,6 +34,17 @@ try
         throw new InvalidOperationException("Expected exactly one key annotation.");
     Console.WriteLine("Completed case: table/view, generated column and keyless mapping.");
 
+    SqliteSchemaGenerator.Scaffold(database, output, "Customized", "TestContext", databaseVersion: null,
+        include: table => table == "keyed",
+        entityName: _ => "SelectedRow",
+        propertyName: (_, _) => "RowId",
+        clrType: (_, _) => "int");
+    var models = Directory.GetFiles(Path.Combine(directory.FullName, "Models"), "*.g.cs");
+    if (models.Length != 1 || Path.GetFileName(models[0]) != "SelectedRow.g.cs" ||
+        !File.ReadAllText(models[0]).Contains("public int? RowId", StringComparison.Ordinal) ||
+        !File.ReadAllText(models[0]).Contains("Column(\"id\"", StringComparison.Ordinal))
+        throw new InvalidOperationException("Scaffold customizations did not preserve the SQL mapping.");
+
     command.CommandText = "CREATE TABLE unknown_schema(ambiguous GEOMETRY);";
     command.ExecuteNonQuery();
     var previous = File.ReadAllBytes(output);

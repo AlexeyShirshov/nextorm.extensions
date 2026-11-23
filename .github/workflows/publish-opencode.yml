@@ -2,12 +2,6 @@ name: Publish Nextorm.Extensions.OpenCode
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: NuGet package version
-        required: true
-        default: '1.0.0'
-        type: string
 
 jobs:
   pack:
@@ -23,9 +17,7 @@ jobs:
         with:
           dotnet-version: 11.0.x
       - name: Pack
-        env:
-          PACKAGE_VERSION: ${{ inputs.version }}
-        run: dotnet pack src/RepositoryContext/Nextorm.Extensions.OpenCode/Nextorm.Extensions.OpenCode.csproj -c Release -p:PackageVersion="$PACKAGE_VERSION" -o ./nupkgs
+        run: dotnet pack src/RepositoryContext/Nextorm.Extensions.OpenCode/Nextorm.Extensions.OpenCode.csproj -c Release -o ./nupkgs
       - uses: actions/upload-artifact@v4
         with:
           name: opencode-nupkg

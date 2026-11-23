@@ -2,7 +2,7 @@
 #nullable enable
 namespace DatabaseMappings;
 
-internal sealed class SqliteRepositoryContext(global::NextORM.Core.IDataContext dataContext)
+internal class SqliteRepositoryContext(global::NextORM.Core.IDataContext dataContext)
     : global::NextORM.Core.Repositories.RepositoryContext(dataContext)
 {
     public global::NextORM.Core.IRepository<PragmaTableXinfo> TableXinfo => Repository<PragmaTableXinfo>();
@@ -11,7 +11,7 @@ internal sealed class SqliteRepositoryContext(global::NextORM.Core.IDataContext 
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("pragma_table_xinfo")]
-internal sealed class PragmaTableXinfo
+internal class PragmaTableXinfo
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("arg")]
     public string TableArgument { get; set; } = null!;
@@ -32,7 +32,7 @@ internal sealed class PragmaTableXinfo
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("pragma_table_list")]
-internal sealed class PragmaTableList
+internal class PragmaTableList
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("schema", Order = 0, TypeName = "TEXT")]
     public string Column0 { get; set; } = null!;
@@ -49,7 +49,7 @@ internal sealed class PragmaTableList
 }
 
 [global::System.ComponentModel.DataAnnotations.Schema.Table("sqlite_schema")]
-internal sealed class SqliteSchema
+internal class SqliteSchema
 {
     [global::System.ComponentModel.DataAnnotations.Schema.Column("type", Order = 0, TypeName = "TEXT")]
     public string Column0 { get; set; } = null!;

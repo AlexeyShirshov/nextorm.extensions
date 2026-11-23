@@ -32,7 +32,7 @@ void Generate(string provider, string schema, string catalog)
     foreach (var table in tables)
     {
         source.Append($"\n[global::System.ComponentModel.DataAnnotations.Schema.Table(\"{table[0]}\", Schema = \"{schema}\")]\n");
-        source.Append($"internal sealed class {table[1]}\n{{\n");
+        source.Append($"internal class {table[1]}\n{{\n");
         foreach (var field in table.Skip(2))
         {
             var parts = field.Split(':');
