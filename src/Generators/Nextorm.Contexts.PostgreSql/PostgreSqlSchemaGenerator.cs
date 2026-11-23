@@ -29,10 +29,16 @@ public static class PostgreSqlSchemaGenerator
         Func<string, string, string>? propertyName, Func<string, string, string?>? clrType) =>
         Generate(connectionString, outputPath, targetNamespace, contextName, true, true, include, entityName, propertyName, clrType);
 
+    public static void Scaffold(string connectionString, string outputPath, string targetNamespace, string contextName,
+        Func<string, string, string?> clrType, Func<string, string, string?> converterType) =>
+        Generate(connectionString, outputPath, targetNamespace, contextName, publicContext: true, splitModels: true,
+            clrType: clrType, converterType: converterType);
+
     private static void Generate(string connectionString, string outputPath, string targetNamespace, string contextName, bool publicContext, bool splitModels,
         Func<string, bool>? include = null, Func<string, string>? renameEntity = null,
         Func<string, string, string>? renameProperty = null, Func<string, string, string?>? clrType = null,
-        string? selectedSchema = null, Func<string, bool>? includeSchema = null)
+        string? selectedSchema = null, Func<string, bool>? includeSchema = null,
+        Func<string, string, string?>? converterType = null)
     {
         var destination = Path.GetFullPath(outputPath);
         if (!destination.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
@@ -135,6 +141,8 @@ public static class PostgreSqlSchemaGenerator
             var property = publicContext
                 ? RepositoryContextSource.Identifier(renameProperty?.Invoke(name, column) ?? column, "Field", usedProperties)
                 : FormattableString.Invariant($"Column{++columnNumber}");
+            if (converterType?.Invoke(column, declaration) is { } converter)
+                source.Append(CultureInfo.InvariantCulture, $"    [global::NextORM.Core.ValueConverter(typeof({converter}))]\n");
             source.Append(CultureInfo.InvariantCulture,
                 $"    [global::System.ComponentModel.DataAnnotations.Schema.Column({Literal(column)}, TypeName = {Literal(declaration)})]\n    public {type}{suffix} {property} {{ get; set; }}{initializer}\n");
         }

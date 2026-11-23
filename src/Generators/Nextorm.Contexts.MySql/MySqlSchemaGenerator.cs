@@ -20,23 +20,41 @@ public static class MySqlSchemaGenerator
 
     public static void Scaffold(string connectionString, string schema, string outputPath,
         string targetNamespace, string contextName, Func<string, bool>? include, Func<string, string>? entityName,
-        Func<string, string, string>? propertyName, Func<string, string, string?>? clrType, bool singleFile = false)
+        Func<string, string, string>? propertyName, Func<string, string, string?>? clrType, bool singleFile = false) =>
+        ScaffoldLive(connectionString, schema, outputPath, targetNamespace, contextName, include, entityName,
+            propertyName, clrType, singleFile, mariaDb: false);
+
+    public static void ScaffoldMariaDb(string connectionString, string schema, string outputPath,
+        string targetNamespace, string contextName, global::Nextorm.Scaffold.IScaffoldInterceptor interceptor,
+        bool singleFile = false) =>
+        ScaffoldLive(connectionString, schema, outputPath, targetNamespace, contextName, interceptor.IncludeObject,
+            interceptor.GetEntityName, interceptor.GetPropertyName, interceptor.GetClrType, singleFile, mariaDb: true);
+
+    private static void ScaffoldLive(string connectionString, string schema, string outputPath,
+        string targetNamespace, string contextName, Func<string, bool>? include, Func<string, string>? entityName,
+        Func<string, string, string>? propertyName, Func<string, string, string?>? clrType, bool singleFile, bool mariaDb)
     {
         using var connection = new MySqlConnection(connectionString);
         connection.Open();
-        if (connection.ServerVersion.Contains("MariaDB", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("MySQL scaffolding requires a MySQL server.");
+        if (connection.ServerVersion.Contains("MariaDB", StringComparison.OrdinalIgnoreCase) != mariaDb)
+            throw new InvalidDataException(mariaDb
+                ? "MariaDB scaffolding requires a MariaDB server."
+                : "MySQL scaffolding requires a MySQL server.");
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT c.TABLE_NAME, c.COLUMN_NAME, c.COLUMN_TYPE, c.IS_NULLABLE, c.COLUMN_KEY
+            SELECT c.TABLE_NAME, c.COLUMN_NAME, c.COLUMN_TYPE, c.IS_NULLABLE, k.ORDINAL_POSITION
             FROM information_schema.COLUMNS c
             JOIN information_schema.TABLES t USING (TABLE_SCHEMA, TABLE_NAME)
-            WHERE c.TABLE_SCHEMA = @schema AND t.TABLE_TYPE = 'BASE TABLE'
+            LEFT JOIN information_schema.KEY_COLUMN_USAGE k
+                ON k.TABLE_SCHEMA = c.TABLE_SCHEMA AND k.TABLE_NAME = c.TABLE_NAME
+                AND k.COLUMN_NAME = c.COLUMN_NAME AND k.CONSTRAINT_NAME = 'PRIMARY'
+            WHERE c.TABLE_SCHEMA = @schema AND (t.TABLE_TYPE = 'BASE TABLE' OR (@views = 1 AND t.TABLE_TYPE = 'VIEW'))
             ORDER BY BINARY c.TABLE_NAME, c.ORDINAL_POSITION
             """;
         command.Parameters.AddWithValue("@schema", schema);
+        command.Parameters.AddWithValue("@views", mariaDb ? 1 : 0);
         using var reader = command.ExecuteReader();
-        var tables = new Dictionary<string, (List<MySqlColumn> Columns, List<string> Keys)>(StringComparer.Ordinal);
+        var tables = new Dictionary<string, (List<MySqlColumn> Columns, SortedDictionary<int, string> Keys)>(StringComparer.Ordinal);
         while (reader.Read())
         {
             var table = reader.GetString(0);
@@ -44,11 +62,11 @@ public static class MySqlSchemaGenerator
                 tables.Add(table, mapping = ([], []));
             var column = reader.GetString(1);
             mapping.Columns.Add(new(column, reader.GetString(2), reader.GetString(3) == "YES"));
-            if (reader.GetString(4) == "PRI")
-                mapping.Keys.Add(column);
+            if (!reader.IsDBNull(4))
+                mapping.Keys.Add(reader.GetInt32(4), column);
         }
         GenerateTables(schema,
-            tables.Select(pair => new MySqlTable(pair.Key, pair.Value.Columns, pair.Value.Keys)).ToArray(),
+            tables.Select(pair => new MySqlTable(pair.Key, pair.Value.Columns, [.. pair.Value.Keys.Values])).ToArray(),
             outputPath, targetNamespace, contextName, !singleFile, include, entityName, propertyName, clrType);
     }
 

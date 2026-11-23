@@ -1,6 +1,12 @@
 using MySqlConnector;
 using Nextorm.Contexts.LiveCatalog;
 
+if (args.Length == 2 && args[0] == "--ready" && Path.IsPathFullyQualified(args[1]))
+{
+    Environment.ExitCode = CheckReadiness(args[1]);
+    return;
+}
+
 if (args.Length != 2 || !Path.IsPathFullyQualified(args[0]))
     throw new ArgumentException("Supply a disposable local Unix socket and a generated source output path.");
 
@@ -54,4 +60,40 @@ static void Require(bool condition, string reason)
 {
     if (!condition)
         throw new InvalidOperationException(reason);
+}
+
+static int CheckReadiness(string socketPath)
+{
+    try
+    {
+        var settings = new MySqlConnectionStringBuilder
+        {
+            Server = socketPath,
+            UserID = "root",
+            Pooling = false,
+            ConnectionTimeout = 2
+        };
+        using var connection = new MySqlConnection(settings.ConnectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT VERSION(), @@global.skip_networking;";
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
+        {
+            Console.Error.WriteLine("Readiness query returned no row.");
+            return 1;
+        }
+
+        var version = reader.GetString(0);
+        var skipNetworking = reader.GetInt32(1);
+        Console.WriteLine($"READY mysql_version={version} skip_networking={skipNetworking}");
+        return skipNetworking == 0 ? 0 : 1;
+    }
+    catch (Exception error)
+    {
+        // Keep readiness diagnostics useful without ever printing connection details.
+        Console.Error.WriteLine($"MySQL is not ready ({error.GetType().Name}).");
+        return 75;
+    }
 }

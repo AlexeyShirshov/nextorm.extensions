@@ -24,12 +24,20 @@ public static class SqliteSchemaGenerator
     public static void Scaffold(string databasePath, string outputPath, string targetNamespace, string contextName,
         string? databaseVersion, global::Nextorm.Scaffold.IScaffoldInterceptor interceptor, bool singleFile = false) =>
         Generate(databasePath, outputPath, contextName, databaseVersion, targetNamespace, !singleFile,
-            interceptor.IncludeObject, interceptor.GetEntityName, interceptor.GetPropertyName, interceptor.GetClrType);
+            interceptor.IncludeObject, interceptor.GetEntityName, interceptor.GetPropertyName,
+            (_, column, declaration) => interceptor.GetClrType(column, declaration));
 
     public static void Scaffold(string databasePath, string outputPath, string targetNamespace, string contextName,
         string? databaseVersion, Func<string, bool>? include, Func<string, string>? entityName,
         Func<string, string, string>? propertyName, Func<string, string, string?>? clrType) =>
-        Generate(databasePath, outputPath, contextName, databaseVersion, targetNamespace, true, include, entityName, propertyName, clrType);
+        Generate(databasePath, outputPath, contextName, databaseVersion, targetNamespace, true, include, entityName,
+            propertyName, (_, column, declaration) => clrType?.Invoke(column, declaration));
+
+    public static void Scaffold(string databasePath, string outputPath, string targetNamespace, string contextName,
+        string? databaseVersion, Func<string, string, string, string?> columnClrType,
+        Func<string, string, string, string?>? converterType = null) =>
+        Generate(databasePath, outputPath, contextName, databaseVersion, targetNamespace, splitModels: true,
+            clrType: columnClrType, converterType: converterType);
 
     public static void Generate(string databasePath, string outputPath, string contextName) =>
         Generate(databasePath, outputPath, contextName, databaseVersion: null);
@@ -39,7 +47,8 @@ public static class SqliteSchemaGenerator
 
     private static void Generate(string databasePath, string outputPath, string contextName, string? databaseVersion, string targetNamespace, bool splitModels = false,
         Func<string, bool>? include = null, Func<string, string>? renameEntity = null,
-        Func<string, string, string>? renameProperty = null, Func<string, string, string?>? clrType = null)
+        Func<string, string, string>? renameProperty = null, Func<string, string, string, string?>? clrType = null,
+        Func<string, string, string, string?>? converterType = null)
     {
         using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {
@@ -104,11 +113,12 @@ public static class SqliteSchemaGenerator
                 var propertyName = AllocateIdentifier(renameProperty?.Invoke(name, columnName) ?? columnName, "Column", usedPropertyNames);
                 properties.Add(columnName, propertyName);
                 var declared = column.Column2;
-                var type = clrType?.Invoke(columnName, declared) ?? (declared.Trim().ToUpperInvariant() switch
+                var type = clrType?.Invoke(name, columnName, declared) ?? (declared.Trim().ToUpperInvariant() switch
                 {
                     "INTEGER" or "INT" or "BIGINT" or "SMALLINT" or "TINYINT" => "long",
                     "REAL" or "DOUBLE" or "DOUBLE PRECISION" or "FLOAT" => "double",
                     "TEXT" or "UUID" => "string",
+                    "BOOLEAN" => "bool",
                     "DATETIME" => "global::System.DateTime",
                     "BLOB" => "byte[]",
                     _ => throw new InvalidDataException(
@@ -120,6 +130,8 @@ public static class SqliteSchemaGenerator
                 var keyOrdinal = column.Column5;
                 if (keyOrdinal > 0 && row.Column2 != "view")
                     keys.Add((keyOrdinal, propertyName, source.Length));
+                if (converterType?.Invoke(name, columnName, declared) is { } converter)
+                    source.Append(CultureInfo.InvariantCulture, $"    [global::NextORM.Core.ValueConverter(typeof({converter}))]\n");
                 source.Append(CultureInfo.InvariantCulture,
                     $"    [global::System.ComponentModel.DataAnnotations.Schema.Column({Literal(columnName)}, Order = {column.Column0}, TypeName = {Literal(declared)})]\n" +
                     $"    public {type}{suffix} {propertyName} {{ get; set; }}{initializer}\n");

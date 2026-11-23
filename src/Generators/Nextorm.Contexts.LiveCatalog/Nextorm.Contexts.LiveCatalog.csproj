@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -10,5 +11,8 @@
     <PackageReference Include="Nextorm.MariaDb" Version="1.0.11" />
     <ProjectReference Include="../Nextorm.Contexts.MySql/Nextorm.Contexts.MySql.csproj" />
     <ProjectReference Include="../Nextorm.Contexts.MariaDb/Nextorm.Contexts.MariaDb.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>

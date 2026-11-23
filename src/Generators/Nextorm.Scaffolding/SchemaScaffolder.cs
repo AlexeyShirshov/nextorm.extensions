@@ -24,6 +24,9 @@ public static class SchemaScaffolder
             case "mysql":
                 MySqlSchemaGenerator.Scaffold(source, mysqlSchema!, output, targetNamespace, context, interceptor, singleFile);
                 break;
+            case "mariadb":
+                MySqlSchemaGenerator.ScaffoldMariaDb(source, mysqlSchema!, output, targetNamespace, context, interceptor, singleFile);
+                break;
             case "sqlserver":
                 SqlServerSchemaGenerator.Scaffold(source, output, targetNamespace, context, interceptor, singleFile, includeSchema);
                 break;

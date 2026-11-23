@@ -4,3 +4,5 @@
 !/.pdca/status/
 /.pdca/status/*
 !/.pdca/status/*.md
+/artifacts/mysql-live-smoke/
+__pycache__/

@@ -108,8 +108,8 @@ try
     if (Path.IsPathRooted(modelsPath) || relativeModels == "." || relativeModels == ".." ||
         relativeModels.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
         throw new ArgumentException("--models-dir must be a subdirectory of --output-dir.");
-    if (provider is not ("sqlite" or "postgresql" or "mysql" or "sqlserver"))
-        throw new ArgumentException("Supported providers: sqlite, postgresql, mysql, sqlserver (mssql).");
+    if (provider is not ("sqlite" or "postgresql" or "mysql" or "mariadb" or "sqlserver"))
+        throw new ArgumentException("Supported providers: sqlite, postgresql, mysql, mariadb, sqlserver (mssql).");
     if (provider == "sqlite" && (schemas.Count > 0 || excludedSchemas.Count > 0 || options.ContainsKey("--connection-env")))
         throw new ArgumentException("SQLite accepts --database, not schema filters or --connection-env.");
     if (provider != "sqlite" && options.ContainsKey("--database"))
@@ -121,8 +121,9 @@ try
     if (provider != "sqlite" && string.IsNullOrWhiteSpace(connection))
         throw new ArgumentException("The connection environment variable is empty or not set.");
     bool IncludeSchema(string name) => (schemas.Count == 0 || schemas.Contains(name)) && !excludedSchemas.Contains(name);
-    if (provider == "mysql" && (schemas.Count != 1 || !IncludeSchema(schemas.Single())))
-        throw new ArgumentException("MySQL requires exactly one --schema that is not excluded.");
+    var requiresSchema = provider is "mysql" or "mariadb";
+    if (requiresSchema && (schemas.Count != 1 || !IncludeSchema(schemas.Single())))
+        throw new ArgumentException($"{provider} requires exactly one --schema that is not excluded.");
 
     IScaffoldInterceptor? plugin = null;
     if (options.TryGetValue("--customize", out var dll))
@@ -141,7 +142,7 @@ try
     {
         var destination = Path.Combine(staging.FullName, filename);
         SchemaScaffolder.Generate(provider, database ?? connection!, destination, targetNamespace, context,
-            interceptor, singleFile, IncludeSchema, provider == "mysql" ? schemas.Single() : null);
+            interceptor, singleFile, IncludeSchema, requiresSchema ? schemas.Single() : null);
 
         File.WriteAllText(destination, owner + "\n" + File.ReadAllText(destination));
         var files = Directory.GetFiles(staging.FullName, "*.cs", SearchOption.AllDirectories)
