@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <PackageVersion>1.0.0</PackageVersion>
+    <PackageId>Nextorm.Extensions.Grafana</PackageId>
+    <IsPackable>true</IsPackable>
+    <RepositoryUrl>https://github.com/AlexeyShirshov/nextorm.extensions</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>nextorm;grafana;sqlite</PackageTags>
+    <Description>Nextorm repository context for the Grafana OSS 12.3.0 SQLite schema.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Nextorm.Sqlite" Version="1.0.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

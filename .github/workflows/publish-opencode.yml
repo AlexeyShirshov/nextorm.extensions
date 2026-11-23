@@ -2,6 +2,11 @@ name: Publish Nextorm extension packages
 
 on:
   workflow_dispatch:
+    inputs:
+      repository_contexts_only:
+        description: Publish only the application repository context packages
+        type: boolean
+        default: false
 
 jobs:
   pack:
@@ -19,9 +24,14 @@ jobs:
       - name: Pack
         run: |
           set -euo pipefail
-          for project in src/RepositoryContext/*/*.csproj src/Generators/Nextorm.Scaffold.Abstractions/*.csproj; do
+          for project in src/RepositoryContext/*/*.csproj; do
             dotnet pack "$project" -c Release -o ./nupkgs
           done
+      - name: Pack scaffold packages
+        if: ${{ !inputs.repository_contexts_only }}
+        run: |
+          set -euo pipefail
+          dotnet pack src/Generators/Nextorm.Scaffold.Abstractions -c Release -o ./nupkgs
           dotnet pack src/Tools/Nextorm.Scaffold -c Release -p:RuntimeIdentifiers=linux-x64 -o ./nupkgs
       - uses: actions/upload-artifact@v4
         with:
