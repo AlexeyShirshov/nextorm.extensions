@@ -1,4 +1,4 @@
-name: Publish Nextorm.Extensions.OpenCode
+name: Publish Nextorm extension packages
 
 on:
   workflow_dispatch:
@@ -17,10 +17,15 @@ jobs:
         with:
           dotnet-version: 11.0.x
       - name: Pack
-        run: dotnet pack src/RepositoryContext/Nextorm.Extensions.OpenCode/Nextorm.Extensions.OpenCode.csproj -c Release -o ./nupkgs
+        run: |
+          set -euo pipefail
+          for project in src/RepositoryContext/*/*.csproj src/Generators/Nextorm.Scaffold.Abstractions/*.csproj; do
+            dotnet pack "$project" -c Release -o ./nupkgs
+          done
+          dotnet pack src/Tools/Nextorm.Scaffold -c Release -p:RuntimeIdentifiers=linux-x64 -o ./nupkgs
       - uses: actions/upload-artifact@v4
         with:
-          name: opencode-nupkg
+          name: extension-nupkgs
           path: nupkgs/*.nupkg
           if-no-files-found: error
 
@@ -32,17 +37,20 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: opencode-nupkg
+          name: extension-nupkgs
           path: nupkgs
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 11.0.x
-      - name: NuGet login
-        uses: NuGet/login@v1
+      - uses: NuGet/login@v1
         id: login
         with:
           user: ${{ secrets.NUGET_USER }}
       - name: Publish to NuGet.org
         env:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
-        run: dotnet nuget push ./nupkgs/*.nupkg --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          set -euo pipefail
+          for package in ./nupkgs/*.nupkg; do
+            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          done
