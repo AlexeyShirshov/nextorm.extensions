@@ -24,6 +24,8 @@ ExpectRefusal<InvalidDataException>(metadata.Replace("Catalog.Item", "Catalog.Pr
     "Circular OData inheritance");
 ExpectRefusal<InvalidDataException>(metadata.Replace("Name=\"Product\"", "Name=\"Product;\"", StringComparison.Ordinal),
     "not a supported C# identifier");
+ExpectRefusal<InvalidDataException>("<metadata />", "Expected an OData 4.0 or 4.01 EDMX XML metadata document.");
+ExpectRefusal<XmlException>("<!-- no document element -->");
 ExpectRefusal<XmlException>("<!DOCTYPE Edmx><Edmx/>");
 
 Console.WriteLine("OData smoke checks passed.");

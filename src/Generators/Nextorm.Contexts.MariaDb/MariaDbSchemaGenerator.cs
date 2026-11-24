@@ -98,23 +98,7 @@ public static class MariaDbSchemaGenerator
                 throw new InvalidDataException($"MariaDB object {objectName}: primary key column {Literal(primaryKeyColumns[index])} was not found.");
         source.Append("}\n");
         RepositoryContextSource.Append(source, "MariaDbRepositoryContext", [className]);
-        var temporary = Path.Combine(Path.GetDirectoryName(destination)!, $".{Guid.NewGuid():N}.tmp");
-        var ownsTemporary = false;
-        try
-        {
-            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write))
-            {
-                ownsTemporary = true;
-                using var writer = new StreamWriter(stream);
-                writer.Write(source.ToString());
-            }
-            File.Move(temporary, destination, overwrite: true);
-        }
-        finally
-        {
-            if (ownsTemporary)
-                File.Delete(temporary);
-        }
+        RepositoryContextFiles.WriteAtomically(destination, source);
     }
 
     private static bool IsVarchar(string declaration) =>

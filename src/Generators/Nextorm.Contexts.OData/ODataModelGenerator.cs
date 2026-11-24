@@ -51,7 +51,7 @@ public static class ODataModelGenerator
             MaxCharactersInDocument = 16 * 1024 * 1024,
         });
         var root = XDocument.Load(reader).Root;
-        if (root?.Name != Edmx + "Edmx" || (string?)root.Attribute("Version") is not ("4.0" or "4.01") ||
+        if (root is null || root.Name != Edmx + "Edmx" || (string?)root.Attribute("Version") is not ("4.0" or "4.01") ||
             root.Element(Edmx + "DataServices") is not { } services)
         {
             throw new InvalidDataException("Expected an OData 4.0 or 4.01 EDMX XML metadata document.");

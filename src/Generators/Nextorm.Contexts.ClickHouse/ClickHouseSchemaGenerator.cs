@@ -36,23 +36,7 @@ public static class ClickHouseSchemaGenerator
         }
         RepositoryContextSource.Append(source, "ClickHouseRepositoryContext", mappings);
 
-        var temporary = Path.Combine(Path.GetDirectoryName(destination)!, $".{Guid.NewGuid():N}.tmp");
-        var ownsTemporary = false;
-        try
-        {
-            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write))
-            {
-                ownsTemporary = true;
-                using var writer = new StreamWriter(stream);
-                writer.Write(source.ToString());
-            }
-            File.Move(temporary, destination, overwrite: true);
-        }
-        finally
-        {
-            if (ownsTemporary)
-                File.Delete(temporary);
-        }
+        RepositoryContextFiles.WriteAtomically(destination, source);
     }
 
     private static void AppendMapping(StringBuilder source, ClickHouseCatalogObject item, string className)

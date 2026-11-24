@@ -28,10 +28,13 @@ internal static class SqlServerCatalog
             typeof(string), typeof(bool), typeof(byte), typeof(byte), typeof(short), typeof(int), typeof(bool), typeof(string)];
         foreach (var fieldType in fieldTypes)
             metadata.Columns.Add(null, fieldType);
-        foreach (var item in objects.OrderBy(row => row.ObjectId))
+        foreach (var entry in objects
+            .Select(item => (Item: item, Found: schemas.TryGetValue(item.SchemaId, out var schema), Schema: schema))
+            .Where(entry => entry.Found)
+            .OrderBy(entry => entry.Item.ObjectId))
         {
-            if (!schemas.TryGetValue(item.SchemaId, out var schema))
-                continue;
+            var item = entry.Item;
+            var schema = entry.Schema;
             foreach (var column in columns[item.ObjectId].OrderBy(row => row.ColumnId).DefaultIfEmpty())
             {
                 var native = column is not null ? types.GetValueOrDefault(column.UserTypeId) : null;

@@ -54,7 +54,7 @@ internal static class ODataModelsCommand
             var source = await GenerateAsync(metadata, targetNamespace, cancellationToken);
             var directory = Path.GetDirectoryName(path)!;
             Directory.CreateDirectory(directory);
-            var temporary = Path.Combine(directory, Path.GetRandomFileName());
+            var temporary = Path.Join(directory, Path.GetRandomFileName());
             var created = false;
             try
             {

@@ -142,6 +142,7 @@ public static class SqliteSchemaGenerator
                 usedPropertyNames, source.Length));
             source.Append("}\n");
         }
+        var navigations = new StringBuilder();
         foreach (var (table, entity) in entities.OrderByDescending(pair => pair.Value.Offset))
         {
             using var command = connection.CreateCommand();
@@ -158,7 +159,7 @@ public static class SqliteSchemaGenerator
                 foreignKeys.Add((reader.GetInt64(0), reader.GetString(1), reader.GetString(2),
                     reader.IsDBNull(3) ? null : reader.GetString(3)));
 
-            var navigations = new StringBuilder();
+            navigations.Clear();
             foreach (var key in foreignKeys.GroupBy(column => column.Id))
             {
                 var columns = key.ToArray();
@@ -188,18 +189,7 @@ public static class SqliteSchemaGenerator
         }
         if (!destination.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Output must be a C# source file.", nameof(outputPath));
-        var temporary = Path.Combine(Path.GetDirectoryName(destination)!, $".{Guid.NewGuid():N}.tmp");
-        try
-        {
-            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write))
-            using (var writer = new StreamWriter(stream))
-                writer.Write(source.ToString());
-            File.Move(temporary, destination, overwrite: true);
-        }
-        finally
-        {
-            File.Delete(temporary);
-        }
+        RepositoryContextFiles.WriteAtomically(destination, source);
     }
 
 

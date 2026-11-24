@@ -1,9 +1,33 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Nextorm.Contexts;
 
 internal static class RepositoryContextFiles
 {
+    internal static void WriteAtomically(string destination, StringBuilder source)
+    {
+        var temporary = Path.Join(Path.GetDirectoryName(destination), $".{Guid.NewGuid():N}.tmp");
+        var ownsTemporary = false;
+        try
+        {
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write))
+            {
+                ownsTemporary = true;
+                using var writer = new StreamWriter(stream);
+                writer.Write(source);
+            }
+            File.Move(temporary, destination, overwrite: true);
+        }
+        finally
+        {
+            if (ownsTemporary)
+            {
+                File.Delete(temporary);
+            }
+        }
+    }
+
     internal static void Split(string source, string output)
     {
         const string table = @"^(?:\[global::System\.ComponentModel\.Description\([^\r\n]*\)\]\r?\n)?\[global::System\.ComponentModel\.DataAnnotations\.Schema\.Table\(";
@@ -24,22 +48,21 @@ internal static class RepositoryContextFiles
                 throw new InvalidDataException("Missing or duplicate entity filename.");
         }
 
-        var modelsDirectory = Path.Combine(Path.GetDirectoryName(output)!, "Models");
+        var modelsDirectory = Path.Join(Path.GetDirectoryName(output), "Models");
         Directory.CreateDirectory(modelsDirectory);
-        foreach (var name in models.Keys)
+        foreach (var path in models.Keys.Select(name => Path.Join(modelsDirectory, name)))
         {
-            var path = Path.Combine(modelsDirectory, name);
             if (File.Exists(path) && File.ReadLines(path).FirstOrDefault() != owner)
                 throw new IOException($"Refusing to overwrite a model not generated for this context: {path}");
         }
         foreach (var (name, content) in models)
-            File.WriteAllText(Path.Combine(modelsDirectory, name), content);
+            File.WriteAllText(Path.Join(modelsDirectory, name), content);
         File.WriteAllText(output, header + source[sections[^1].Index..]);
-        foreach (var path in Directory.EnumerateFiles(modelsDirectory, "*.g.cs"))
+        var staleModels = Directory.EnumerateFiles(modelsDirectory, "*.g.cs").Where(path =>
+            !models.ContainsKey(Path.GetFileName(path)) && File.ReadLines(path).FirstOrDefault() == owner);
+        foreach (var path in staleModels)
         {
-            if (!models.ContainsKey(Path.GetFileName(path)) &&
-                File.ReadLines(path).FirstOrDefault() == owner)
-                File.Delete(path);
+            File.Delete(path);
         }
     }
 }
