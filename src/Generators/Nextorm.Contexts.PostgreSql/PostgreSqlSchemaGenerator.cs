@@ -31,8 +31,13 @@ public static class PostgreSqlSchemaGenerator
 
     public static void Scaffold(string connectionString, string outputPath, string targetNamespace, string contextName,
         Func<string, string, string?> clrType, Func<string, string, string?> converterType) =>
+        Scaffold(connectionString, outputPath, targetNamespace, contextName, include: null, clrType, converterType);
+
+    /// <summary>Scaffolds selected database objects with custom CLR and converter types.</summary>
+    public static void Scaffold(string connectionString, string outputPath, string targetNamespace, string contextName,
+        Func<string, bool>? include, Func<string, string, string?> clrType, Func<string, string, string?> converterType) =>
         Generate(connectionString, outputPath, targetNamespace, contextName, publicContext: true, splitModels: true,
-            clrType: clrType, converterType: converterType);
+            include: include, clrType: clrType, converterType: converterType);
 
     private static void Generate(string connectionString, string outputPath, string targetNamespace, string contextName, bool publicContext, bool splitModels,
         Func<string, bool>? include = null, Func<string, string>? renameEntity = null,

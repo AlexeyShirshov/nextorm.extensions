@@ -19,6 +19,8 @@ PostgreSqlSchemaGenerator.Scaffold(
     "src/RepositoryContext/Nextorm.Extensions.Immich/ImmichPostgreSqlRepositoryContext.cs",
     "Nextorm.Extensions.Immich",
     "ImmichPostgreSqlRepositoryContext",
+    // Immich excludes the backup orchestrator's tables from its own schema migrations.
+    include: static name => !name.StartsWith("futo_backups_", StringComparison.Ordinal),
     clrType: (_, declared) => declared switch
     {
         "date" => "global::System.DateOnly",

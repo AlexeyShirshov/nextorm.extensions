@@ -48,7 +48,33 @@ catch (InvalidDataException exception) when (
     Require(previous.AsSpan().SequenceEqual(File.ReadAllBytes(args[0])), "Previous source must remain byte-identical");
 }
 Console.WriteLine("Case 2: reason-specific refusal with previous source preserved.");
-Console.WriteLine("Selected: 2; completed: 2; failed: 0; skipped: 0.");
+
+command.CommandText = """
+    DROP TABLE mappings_fixture.z_unknown;
+    CREATE TABLE mappings_fixture.futo_backups_schedule (ordering uuid[] NOT NULL);
+    CREATE TABLE mappings_fixture.app_dates (event_date date NOT NULL);
+    """;
+command.ExecuteNonQuery();
+var directory = Directory.CreateTempSubdirectory();
+try
+{
+    var filtered = Path.Join(directory.FullName, "FilteredContext.cs");
+    PostgreSqlSchemaGenerator.Scaffold(connectionString, filtered, "Fixtures.Mappings", "FilteredContext",
+        include: static name => !name.StartsWith("futo_backups_", StringComparison.Ordinal),
+        clrType: static (_, declared) => declared == "date" ? "global::System.DateOnly" : null,
+        converterType: static (_, declared) => declared == "date" ? "FixtureDateConverter" : null);
+    var model = File.ReadAllText(Path.Join(directory.FullName, "Models", "AppDates.g.cs"));
+    Require(model.Contains("public global::System.DateOnly EventDate", StringComparison.Ordinal) &&
+        model.Contains("typeof(FixtureDateConverter)", StringComparison.Ordinal), "Filtered scaffold preserves type and converter overrides");
+    Require(!File.ReadAllText(filtered).Contains("FutoBackupsSchedule", StringComparison.Ordinal),
+        "Excluded backup schedule should not be generated");
+}
+finally
+{
+    directory.Delete(recursive: true);
+}
+Console.WriteLine("Case 3: filtered objects and custom type conversion.");
+Console.WriteLine("Selected: 3; completed: 3; failed: 0; skipped: 0.");
 
 string Body(string name)
 {
