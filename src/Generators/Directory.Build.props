@@ -2,7 +2,7 @@
   <ItemGroup Condition="'$(MSBuildProjectName)' == 'Nextorm.Contexts.Sqlite' or '$(MSBuildProjectName)' == 'Nextorm.Contexts.PostgreSql' or '$(MSBuildProjectName)' == 'Nextorm.Contexts.MySql' or '$(MSBuildProjectName)' == 'Nextorm.Contexts.LiveCatalog' or '$(MSBuildProjectName)' == 'Nextorm.Contexts.SqlServer'">
     <ProjectReference Include="$(MSBuildThisFileDirectory)Nextorm.Scaffold.Abstractions/Nextorm.Scaffold.Abstractions.csproj" />
   </ItemGroup>
-  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Nextorm.Contexts.LiveCatalog' and '$(MSBuildProjectName)' != 'Nextorm.Scaffold.Abstractions' and '$(MSBuildProjectName)' != 'Nextorm.Scaffolding'">
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Nextorm.Contexts.LiveCatalog' and '$(MSBuildProjectName)' != 'Nextorm.Scaffold.Abstractions' and '$(MSBuildProjectName)' != 'Nextorm.Scaffolding' and '$(MSBuildProjectName)' != 'Nextorm.Contexts.OData'">
     <Compile Include="$(MSBuildThisFileDirectory)RepositoryContextSource.cs" Link="RepositoryContextSource.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RepositoryContextFiles.cs" Link="RepositoryContextFiles.cs" />
     <PackageReference Include="Nextorm" Version="1.0.11" Condition="'$(NextOrmCoreProject)' == ''" />

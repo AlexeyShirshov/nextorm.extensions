@@ -11,6 +11,7 @@ using Nextorm.Scaffolding;
 var root = new RootCommand("Nextorm schema tools");
 var scaffold = new Command("scaffold", "Generate C# repository contexts from an existing database.");
 root.Subcommands.Add(scaffold);
+root.Subcommands.Add(ODataModelsCommand.Create());
 var scalarOptions = new[] { "--provider", "--database", "--connection-env", "--namespace", "--context",
     "--output-dir", "--models-dir", "--customize", "--import" }.Select(name => new Option<string>(name)).ToArray();
 var listOptions = new[] { "--table", "--exclude-table", "--schema", "--exclude-schema" }
@@ -24,7 +25,7 @@ scaffold.SetAction(result => Run(
     listOptions.ToDictionary(option => option.Name,
         option => new HashSet<string>(result.GetValue(option) ?? [], StringComparer.Ordinal), StringComparer.Ordinal),
     flagOptions.Where(option => result.GetValue(option)).Select(option => option.Name).ToHashSet(StringComparer.Ordinal)));
-return root.Parse(args.Length == 0 ? ["--help"] : args).Invoke();
+return await root.Parse(args.Length == 0 ? ["--help"] : args).InvokeAsync();
 
 static int Run(Dictionary<string, string> options, Dictionary<string, HashSet<string>> lists, HashSet<string> flags)
 {

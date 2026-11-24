@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="4.01" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+  <edmx:Reference Uri="https://example.invalid/vocab.xml">
+    <edmx:Include Namespace="Example.Vocabulary" Alias="Vocabulary" />
+  </edmx:Reference>
+  <edmx:DataServices>
+    <Schema Namespace="Sample.Catalog" Alias="Catalog" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+      <TypeDefinition Name="Money" UnderlyingType="Edm.Decimal" />
+      <EnumType Name="ShippingMethod">
+        <Member Name="Ground" />
+        <Member Name="Air" />
+      </EnumType>
+      <EnumType Name="Permissions" IsFlags="true" UnderlyingType="Edm.Byte">
+        <Member Name="None" Value="0" />
+        <Member Name="case" Value="1" />
+      </EnumType>
+      <EntityType Name="Item" Abstract="true">
+        <Key><PropertyRef Name="Id" /></Key>
+        <Property Name="Id" Type="Edm.Int64" Nullable="false" />
+        <Property Name="Name" Type="Edm.String" Nullable="false" />
+      </EntityType>
+      <EntityType Name="Product" BaseType="Catalog.Item">
+        <Property Name="Price" Type="Catalog.Money" />
+        <Property Name="Shipping" Type="Catalog.ShippingMethod" />
+        <Property Name="Access" Type="Catalog.Permissions" Nullable="false" />
+        <Property Name="event" Type="Edm.Date" />
+        <Property Name="Tags" Type="Collection(Edm.String)" Nullable="true" />
+        <Property Name="Codes" Type="Collection(Edm.Int32)" Nullable="false" />
+        <Property Name="Warehouse" Type="record.Address" />
+        <NavigationProperty Name="Categories" Type="Collection(record.Category)" />
+        <NavigationProperty Name="PrimaryCategory" Type="record.Category" />
+      </EntityType>
+      <EntityContainer Name="CatalogService">
+        <EntitySet Name="Products" EntityType="Catalog.Product" />
+      </EntityContainer>
+    </Schema>
+    <Schema Namespace="Sample.class" Alias="record" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+      <ComplexType Name="Address">
+        <Property Name="City" Type="Edm.String" />
+      </ComplexType>
+      <EntityType Name="Category">
+        <Key><PropertyRef Name="Id" /></Key>
+        <Property Name="Id" Type="Edm.Guid" Nullable="false" />
+      </EntityType>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>

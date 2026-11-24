@@ -25,13 +25,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for project in src/Generators/*/*.csproj src/RepositoryContext/*/*.csproj tests/*/*.csproj; do
+          for project in src/Generators/*/*.csproj src/RepositoryContext/*/*.csproj src/Tools/*/*.csproj tests/*/*.csproj; do
             dotnet build "$project" -c Release -warnaserror -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=moderate
           done
       - name: Run SQLite smoke checks
         run: |
           dotnet run --project tests/SqliteSmoke/SqliteSmoke.csproj -c Release -f net10.0 --no-build
           dotnet run --project tests/SqliteSmoke/SqliteSmoke.csproj -c Release -f net11.0 --no-build
+      - name: Run OData model smoke checks
+        run: |
+          dotnet run --project tests/ODataSmoke/ODataSmoke.csproj -c Release -f net10.0 --no-build
+          dotnet run --project tests/ODataSmoke/ODataSmoke.csproj -c Release -f net11.0 --no-build
+          output="$RUNNER_TEMP/ODataModels.g.cs"
+          dotnet run --project src/Tools/Nextorm.Scaffold/Nextorm.Scaffold.csproj -c Release --no-build -- \
+            odata-models --metadata tests/ODataSmoke/Metadata.xml --namespace Fixtures.Models --output "$output"
+          tail -n +2 "$output" | diff - tests/ODataSmoke/Models.g.cs
 
   codeql:
     runs-on: ubuntu-latest
