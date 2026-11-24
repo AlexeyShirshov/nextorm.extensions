@@ -11,7 +11,7 @@ using var command = connection.CreateCommand();
 command.CommandText = """
     CREATE SCHEMA mappings_fixture;
     CREATE TABLE mappings_fixture.keyed (first integer, second integer, PRIMARY KEY (second, first));
-    CREATE TABLE mappings_fixture.keyless ("odd""column" text NOT NULL, qty bigint);
+    CREATE TABLE mappings_fixture.keyless ("odd""column" text NOT NULL, qty bigint, points integer[] NOT NULL, durations integer[]);
     CREATE VIEW mappings_fixture.readable AS SELECT "odd""column", qty FROM mappings_fixture.keyless;
     """;
 command.ExecuteNonQuery();
@@ -27,6 +27,10 @@ foreach (var body in new[] { keyless, view })
     Require(body.Contains("Column(\"qty\"", StringComparison.Ordinal), "Second column");
     Require(!body.Contains("DataAnnotations.Key]", StringComparison.Ordinal), "No fabricated key");
 }
+Require(keyless.Contains("Column(\"points\", TypeName = \"integer[]\")]\n    public int[] Column3 { get; set; } = null!;", StringComparison.Ordinal),
+    "Non-null PostgreSQL integer array mapping");
+Require(keyless.Contains("Column(\"durations\", TypeName = \"integer[]\")]\n    public int[]? Column4 { get; set; }", StringComparison.Ordinal),
+    "Nullable PostgreSQL integer array mapping");
 Console.WriteLine("Case 1: table, view, both column mappings, and key assertions completed.");
 
 command.CommandText = "CREATE TABLE mappings_fixture.z_unknown (amount numeric);";

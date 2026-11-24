@@ -127,6 +127,7 @@ public static class PostgreSqlSchemaGenerator
                 "inet" => "global::System.Net.IPAddress",
                 "json" or "jsonb" => "global::System.Text.Json.JsonDocument",
                 "_varchar" or "_text" => "string[]",
+                "_int4" => "int[]",
                 "_int8" => "long[]",
                 _ => throw new InvalidDataException(
                     $"PostgreSQL object {Literal(schema)}.{Literal(name)}, column {Literal(column)}: unsupported schema type {Literal(declaration)}.")
@@ -134,7 +135,7 @@ public static class PostgreSqlSchemaGenerator
 
             var notNull = field.Attnotnull;
             var suffix = notNull ? "" : "?";
-            var initializer = notNull && type is ("string" or "byte[]" or "string[]" or "long[]" or "global::System.Net.IPAddress" or "global::System.Text.Json.JsonDocument") ? " = null!;" : "";
+            var initializer = notNull && type is ("string" or "byte[]" or "string[]" or "int[]" or "long[]" or "global::System.Net.IPAddress" or "global::System.Text.Json.JsonDocument") ? " = null!;" : "";
             if (row.Relkind is 'r' or 'p' or 'f' && keys.TryGetValue(id, out var key) &&
                 key.Indkey.AsSpan(0, key.Indnkeyatts).Contains(field.Attnum))
                 source.Append("    [global::System.ComponentModel.DataAnnotations.Key]\n");
@@ -174,6 +175,7 @@ public static class PostgreSqlSchemaGenerator
         "timestamp" => "timestamp without time zone",
         "_varchar" => "character varying[]",
         "_text" => "text[]",
+        "_int4" => "integer[]",
         "_int8" => "bigint[]",
         "varchar" when modifier >= 4 => FormattableString.Invariant($"character varying({modifier - 4})"),
         "varchar" => "character varying",
