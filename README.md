@@ -24,3 +24,32 @@ C# file.
 Each package README also shows how to publish the same C# file as a Linux x64
 executable and run it without `dotnet`. Test your own queries against the native
 build before shipping it.
+
+## Refresh package schemas
+
+The [publish workflow](.github/workflows/publish-opencode.yml) checks public
+stable releases daily at 04:23 UTC. It uses a fresh database or an upstream
+schema definition. It does not connect to deployments or use application data.
+
+The [schema acquisition script](scripts/scaffold-upstream.sh) covers 16
+packages. Orca still requires manual refresh with its [three database
+snapshots](src/RepositoryContext/Nextorm.Extensions.Orca/README.md#regenerate-the-contexts).
+
+The workflow compares the generated mappings with `main`. A version comment
+alone doesn't trigger a release. If the mappings change, the workflow checks
+the package against the last stable version on NuGet.org. It increments the
+minor version for compatible changes and the major version when the check
+confirms a removed type or member. Other build or validation errors block
+the affected package, not the rest of the matrix.
+
+For a dry run, open **Actions → Publish Nextorm extension packages → Run
+workflow**, select `refresh_schemas`, and leave `publish_schema_updates` off.
+Check the run summary for candidates and download their `schema-*` artifacts
+to inspect the generated patches. To apply and publish changes manually, also
+select `publish_schema_updates` and run from `main`.
+
+The scheduled run saves the generated files and package versions to `main`
+before using the existing NuGet Trusted Publishing policy. Keep Actions write
+access to `main` and the `NUGET_USER` secret available. If publication fails
+after the commit, start a new refresh run from `main` to retry the saved
+version without increasing it again.

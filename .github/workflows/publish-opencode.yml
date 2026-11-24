@@ -1,16 +1,33 @@
 name: Publish Nextorm extension packages
 
 on:
+  schedule:
+    - cron: '23 4 * * *'
   workflow_dispatch:
     inputs:
       repository_contexts_only:
-        description: Publish only the application repository context packages
+        description: For manual publishing, skip the scaffold tool and abstractions
+        type: boolean
+        default: false
+      refresh_schemas:
+        description: Check upstream releases instead of publishing the checked-in packages
+        type: boolean
+        default: false
+      publish_schema_updates:
+        description: Commit and publish schema updates (otherwise schema refresh is a dry run)
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
+concurrency:
+  group: nextorm-nuget-release
+  cancel-in-progress: false
+
 jobs:
   pack:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && !inputs.refresh_schemas
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,15 +56,99 @@ jobs:
           path: nupkgs/*.nupkg
           if-no-files-found: error
 
+  refresh:
+    if: >-
+      (github.ref == 'refs/heads/main' ||
+       (github.event_name == 'workflow_dispatch' && !inputs.publish_schema_updates)) &&
+      (github.event_name == 'schedule' || inputs.refresh_schemas)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - AnythingLLM
+          - Dify
+          - Ghost
+          - Gitea
+          - Gitea.PostgreSql
+          - Grafana
+          - Immich
+          - Jellyfin
+          - LiteLLM
+          - Mastodon
+          - N8n
+          - OpenCode
+          - OpenWebUI
+          - Redmine
+          - T3Code
+          - WordPress
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            10.0.x
+            11.0.x
+      - uses: actions/setup-node@v6
+        if: matrix.package == 'Ghost'
+        with:
+          node-version: '22'
+      - name: Regenerate and pack changed schema
+        id: release
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: bash scripts/schema-package-release.sh prepare "$PACKAGE" "$RUNNER_TEMP/schema-release"
+      - uses: actions/upload-artifact@v4
+        if: steps.release.outputs.ready == 'true'
+        with:
+          name: schema-${{ matrix.package }}
+          path: ${{ runner.temp }}/schema-release/*
+          if-no-files-found: error
+          overwrite: true
+
+  record:
+    needs: refresh
+    # A broken upstream recipe must not block the other packages.
+    if: >-
+      !cancelled() && github.ref == 'refs/heads/main' && needs.refresh.result != 'skipped' &&
+      (github.event_name == 'schedule' || inputs.publish_schema_updates)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      ready: ${{ steps.record.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: schema-*
+          path: ${{ runner.temp }}/schema-releases
+      - name: Save generated files and package versions to main
+        id: record
+        run: bash scripts/schema-package-release.sh record "$RUNNER_TEMP/schema-releases"
+
   publish:
-    needs: pack
+    needs: [pack, record]
+    if: >-
+      !cancelled() &&
+      (needs.pack.result == 'success' ||
+       (needs.record.result == 'success' && needs.record.outputs.ready == 'true'))
     runs-on: ubuntu-latest
     permissions:
       id-token: write
     steps:
       - uses: actions/download-artifact@v4
+        if: needs.pack.result == 'success'
         with:
           name: extension-nupkgs
+          path: nupkgs
+      - uses: actions/download-artifact@v4
+        if: needs.record.outputs.ready == 'true'
+        with:
+          pattern: schema-*
           path: nupkgs
       - uses: actions/setup-dotnet@v6
         with:
@@ -61,6 +162,13 @@ jobs:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
           set -euo pipefail
-          for package in ./nupkgs/*.nupkg; do
-            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          shopt -s nullglob
+          packages=(./nupkgs/*.nupkg ./nupkgs/schema-*/*.nupkg)
+          test "${#packages[@]}" -gt 0
+          failed=0
+          for package in "${packages[@]}"; do
+            if ! dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate; then
+              failed=1
+            fi
           done
+          exit "$failed"

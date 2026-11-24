@@ -12,4 +12,10 @@ MySqlSchemaGenerator.Scaffold("ghost", tables,
     "src/RepositoryContext/Nextorm.Extensions.Ghost/GhostMySqlRepositoryContext.cs",
     "Nextorm.Extensions.Ghost", "GhostMySqlRepositoryContext",
     include: null, entityName: null, propertyName: null,
-    clrType: (_, declaration) => declaration == "tinyint(1)" ? "bool" : null);
+    clrType: (_, declaration) => declaration switch
+    {
+        "tinyint(1)" => "bool",
+        "blob" => "byte[]",
+        _ when declaration.StartsWith("varbinary(", StringComparison.Ordinal) => "byte[]",
+        _ => null
+    });

@@ -4,13 +4,18 @@ const tables = Object.entries(schema).map(([name, specification]) => {
     const columns = [];
     const primaryKey = [];
     for (const [column, spec] of Object.entries(specification)) {
-        if (column === '@@INDEXES@@' || column === '@@UNIQUE_CONSTRAINTS@@') continue;
+        if (column === '@@PRIMARY_KEY@@') {
+            primaryKey.push(...spec);
+            continue;
+        }
+        if (['@@INDEXES@@', '@@UNIQUE_CONSTRAINTS@@', '@@FOREIGN_KEYS@@'].includes(column)) continue;
         const declaration = {
             string: `varchar(${spec.maxlength ?? 191})`,
             boolean: 'tinyint(1)',
             integer: spec.unsigned ? 'int unsigned' : 'int',
             bigInteger: spec.unsigned ? 'bigint unsigned' : 'bigint',
             dateTime: 'datetime',
+            binary: spec.maxlength ? `varbinary(${spec.maxlength})` : 'blob',
             text: spec.fieldtype === 'long' ? 'longtext' : 'text'
         }[spec.type];
         if (!declaration) throw new Error(`Unknown type ${spec.type} on ${name}.${column}`);
