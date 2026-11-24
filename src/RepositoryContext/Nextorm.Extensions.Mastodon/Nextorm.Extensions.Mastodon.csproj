@@ -12,6 +12,7 @@
     <Description>Nextorm repository context for the Mastodon PostgreSQL tags schema.</Description>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../PostgreSqlDateConverter.cs" Link="PostgreSqlDateConverter.cs" />
     <PackageReference Include="Nextorm.Postgres" Version="1.0.11" />
   </ItemGroup>
   <ItemGroup>

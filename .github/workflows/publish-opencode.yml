@@ -83,10 +83,18 @@ jobs:
           - Redmine
           - T3Code
           - WordPress
+    env:
+      PACKAGE: ${{ matrix.package }}
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: Resolve the upstream release
+        # A pending NuGet publication can be retried even if upstream is down.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/scaffold-upstream.sh --resolve "$PACKAGE" "$RUNNER_TEMP/upstream-release.json"
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
@@ -98,9 +106,9 @@ jobs:
           node-version: '22'
       - name: Regenerate and pack changed schema
         id: release
-        env:
-          PACKAGE: ${{ matrix.package }}
-        run: bash scripts/schema-package-release.sh prepare "$PACKAGE" "$RUNNER_TEMP/schema-release"
+        run: |
+          export SCHEMA_UPSTREAM_RELEASE="$RUNNER_TEMP/upstream-release.json"
+          bash scripts/schema-package-release.sh prepare "$PACKAGE" "$RUNNER_TEMP/schema-release"
       - uses: actions/upload-artifact@v4
         if: steps.release.outputs.ready == 'true'
         with:

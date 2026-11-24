@@ -20,5 +20,10 @@ PostgreSqlSchemaGenerator.Scaffold(
     include: null,
     entityName: null,
     propertyName: null,
-    clrType: (_, declared) => declared == "numeric" ? "decimal" : null);
+    clrType: (_, declared) => declared switch
+    {
+        "numeric" => "decimal",
+        "timestamptz" => "global::System.DateTime",
+        _ => null
+    });
 return 0;

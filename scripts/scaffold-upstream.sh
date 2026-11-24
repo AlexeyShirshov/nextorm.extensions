@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-package="${1:?Usage: bash scripts/scaffold-upstream.sh PACKAGE VERSION_FILE}"
-version_file="${2:?Usage: bash scripts/scaffold-upstream.sh PACKAGE VERSION_FILE}"
+resolve_only=false
+if [[ "${1:-}" == --resolve ]]; then
+    resolve_only=true
+    shift
+fi
+package="${1:?Usage: bash scripts/scaffold-upstream.sh [--resolve] PACKAGE OUTPUT}"
+output_file="${2:?Usage: bash scripts/scaffold-upstream.sh [--resolve] PACKAGE OUTPUT}"
 project_dir="src/RepositoryContext/Nextorm.Extensions.$package"
 scratch="$(mktemp -d)"
 container=
@@ -28,19 +33,28 @@ download() {
     curl --fail --silent --show-error --location --retry 3 --max-time 180 "$@"
 }
 
+github_request() {
+    local endpoint="$1" headers=()
+    shift
+    if [[ -n "${GH_TOKEN:-}" ]]; then
+        headers=(--header "Authorization: Bearer $GH_TOKEN")
+    fi
+    download "${headers[@]}" "https://api.github.com/$endpoint" "$@"
+}
+
 latest_release() {
     local release
-    release="$(download "https://api.github.com/repos/$1/releases/latest")"
+    release="$(github_request "repos/$1/releases/latest")" || return
     jq -e 'select(.draft == false and .prerelease == false)' <<< "$release"
 }
 
 latest_opencode_v2() {
     local tags candidate code
-    tags="$(download "https://api.github.com/repos/$upstream/git/matching-refs/tags/v2." |
+    tags="$(github_request "repos/$upstream/git/matching-refs/tags/v2." |
         jq -er '.[].ref | select(test("^refs/tags/v2[.][0-9]+[.][0-9]+$")) | sub("^refs/tags/"; "")' |
         LC_ALL=C sort -Vr)"
     while IFS= read -r candidate; do
-        code="$(download "https://api.github.com/repos/$upstream/releases/tags/$candidate" \
+        code="$(github_request "repos/$upstream/releases/tags/$candidate" \
             -w '%{http_code}' -o "$scratch/release.json" || true)"
         if [[ "$code" == 404 ]]; then
             continue
@@ -138,6 +152,19 @@ start_postgres() {
     return 1
 }
 
+start_redis() {
+    local attempt
+    redis_container="$(docker run --detach --network "container:$container" redis:7-alpine)"
+    for ((attempt=0; attempt<30; attempt++)); do
+        if [[ "$(docker exec "$redis_container" redis-cli ping)" == PONG ]]; then
+            return
+        fi
+        sleep 1
+    done
+    docker logs --tail 80 "$redis_container" >&2
+    return 1
+}
+
 case "$package" in
     AnythingLLM) upstream=mintplex-labs/anything-llm ;;
     Dify) upstream=langgenius/dify ;;
@@ -162,25 +189,44 @@ if [[ -n "$(git status --porcelain -- "$project_dir")" ]]; then
     exit 1
 fi
 
-case "$package" in
-    WordPress)
-        tag="$(download 'https://api.wordpress.org/core/version-check/1.7/' |
-            jq -er 'first(.offers[] | select(.locale == "en_US")).current')"
-        ;;
-    Redmine)
-        tag="$(download 'https://www.redmine.org/releases/' |
-            grep -Eo 'redmine-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz' |
-            sed -E 's@redmine-(.*)\.tar\.gz@\1@' | LC_ALL=C sort -V | tail -n 1)"
-        ;;
-    OpenCode)
-        # This package maps V2. GitHub's general latest release can point at V1.
-        latest_opencode_v2
-        ;;
-    *)
-        release="$(latest_release "$upstream")"
-        tag="$(jq -er '.tag_name' <<< "$release")"
-        ;;
-esac
+resolve_release() {
+    case "$package" in
+        WordPress)
+            tag="$(download 'https://api.wordpress.org/core/version-check/1.7/' |
+                jq -er 'first(.offers[] | select(.locale == "en_US")).current')"
+            ;;
+        Redmine)
+            tag="$(download 'https://www.redmine.org/releases/' |
+                grep -Eo 'redmine-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz' |
+                sed -E 's@redmine-(.*)\.tar\.gz@\1@' | LC_ALL=C sort -V | tail -n 1)"
+            ;;
+        OpenCode)
+            # This package maps V2. GitHub's general latest release can point at V1.
+            latest_opencode_v2
+            ;;
+        *)
+            release="$(latest_release "$upstream")"
+            tag="$(jq -er '.tag_name' <<< "$release")"
+            ;;
+    esac
+}
+
+if [[ "$resolve_only" == true ]]; then
+    resolve_release
+    jq --arg upstream "$upstream" --arg tag "$tag" \
+        '{upstream: $upstream, tag: $tag, release: .}' <<< "${release:-null}" > "$output_file"
+    exit
+fi
+if [[ -n "${SCHEMA_UPSTREAM_RELEASE:-}" ]]; then
+    if [[ ! -s "$SCHEMA_UPSTREAM_RELEASE" ]]; then
+        echo "No release metadata resolved for $package." >&2
+        exit 1
+    fi
+    tag="$(jq -er --arg upstream "$upstream" 'select(.upstream == $upstream).tag' "$SCHEMA_UPSTREAM_RELEASE")"
+    release="$(jq -c '.release' "$SCHEMA_UPSTREAM_RELEASE")"
+else
+    resolve_release
+fi
 version="${tag#n8n@}"
 version="${version#v}"
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
@@ -223,7 +269,7 @@ PY
         ;;
     Dify)
         start_postgres dify
-        redis_container="$(docker run --detach --network "container:$container" redis:7-alpine)"
+        start_redis
         docker run --rm --network "container:$container" \
             -e MODE=migration -e MIGRATION_ENABLED=true -e SECRET_KEY=nextorm-schema-fixture \
             -e DB_TYPE=postgresql -e DB_HOST=127.0.0.1 -e DB_DATABASE=dify \
@@ -308,16 +354,18 @@ PY
         ;;
     Mastodon)
         start_postgres mastodon
+        start_redis
         docker run --rm --network "container:$container" \
             -e LOCAL_DOMAIN=localhost -e RAILS_ENV=production \
             -e SECRET_KEY_BASE=nextorm-schema-fixture -e OTP_SECRET=nextorm-schema-fixture \
+            -e "ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=$(openssl rand -hex 32)" \
+            -e "ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=$(openssl rand -hex 32)" \
+            -e "ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=$(openssl rand -hex 32)" \
             -e DB_HOST=127.0.0.1 -e DB_USER=postgres -e DB_NAME=mastodon -e DB_PASS=nextorm-ci \
+            -e REDIS_HOST=127.0.0.1 \
             "ghcr.io/mastodon/mastodon:$tag" bundle exec rails db:schema:load
-        SCAFFOLD_CONNECTION="Host=127.0.0.1;Port=${address##*:};Database=mastodon;Username=postgres;Password=nextorm-ci" \
-            dotnet run --project src/Tools/Nextorm.Scaffold -c Release -p:PublishAot=false -- scaffold \
-                --provider postgresql --connection-env SCAFFOLD_CONNECTION \
-                --namespace Nextorm.Extensions.Mastodon --context MastodonPostgreSqlRepositoryContext \
-                --output-dir "$project_dir" --force
+        MASTODON_POSTGRES_CONNECTION="Host=127.0.0.1;Port=${address##*:};Database=mastodon;Username=postgres;Password=nextorm-ci" \
+            dotnet run --file scripts/generate-mastodon-context.cs
         ;;
     N8n)
         sqlite_from_image "docker.n8n.io/n8nio/n8n:$version" 5678 /healthz/readiness /home/node/.n8n/database.sqlite \
@@ -399,4 +447,4 @@ fi
 for source in "$project_dir"/*RepositoryContext.cs "$project_dir"/Models/*.g.cs; do
     sed -i "/^\\/\\/ Source database version: /d; /^\\/\\/ <auto-generated\\/>$/a // Source database version: \"$version\"" "$source"
 done
-printf '%s\n' "$version" > "$version_file"
+printf '%s\n' "$version" > "$output_file"
