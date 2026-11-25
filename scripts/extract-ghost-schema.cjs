@@ -1,5 +1,20 @@
-// Usage: node scripts/extract-ghost-schema.cjs /absolute/path/to/Ghost/schema.js
-const schema = require(require('node:path').resolve(process.argv[2]));
+// Usage: node scripts/extract-ghost-schema.cjs /absolute/path/to/Ghost/schema.{js,ts}
+const schemaPath = require('node:path').resolve(process.argv[2]);
+const isTypeScript = schemaPath.endsWith('.ts');
+if (isTypeScript) {
+    const schemaUrl = require('node:url').pathToFileURL(schemaPath).href;
+    // Node strips TypeScript types but needs an explicit extension on this import.
+    require('node:module').registerHooks({
+        resolve(specifier, context, nextResolve) {
+            if (context.parentURL === schemaUrl && specifier === './lib/sortable') {
+                return nextResolve('./lib/sortable.ts', context);
+            }
+            return nextResolve(specifier, context);
+        }
+    });
+}
+const schemaModule = require(schemaPath);
+const schema = isTypeScript ? schemaModule.default : schemaModule;
 const tables = Object.entries(schema).map(([name, specification]) => {
     const columns = [];
     const primaryKey = [];
@@ -8,7 +23,7 @@ const tables = Object.entries(schema).map(([name, specification]) => {
             primaryKey.push(...spec);
             continue;
         }
-        if (['@@INDEXES@@', '@@UNIQUE_CONSTRAINTS@@', '@@FOREIGN_KEYS@@'].includes(column)) continue;
+        if (column.startsWith('@@')) continue;
         const declaration = {
             string: `varchar(${spec.maxlength ?? 191})`,
             boolean: 'tinyint(1)',

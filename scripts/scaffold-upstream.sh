@@ -280,15 +280,24 @@ PY
             dotnet run --file scripts/generate-dify-context.cs
         ;;
     Ghost)
-        # Ghost 6 releases have used both monorepo layouts.
-        if ! download "https://raw.githubusercontent.com/$upstream/$tag/ghost/core/server/data/schema/schema.js" \
-            -o "$scratch/schema.js"; then
-            download "https://raw.githubusercontent.com/$upstream/$tag/ghost/core/core/server/data/schema/schema.js" \
-                -o "$scratch/schema.js"
+        schema_url="https://raw.githubusercontent.com/$upstream/$tag/ghost/core/server/data/schema"
+        schema="$scratch/schema.ts"
+        schema_permissions=()
+        if download "$schema_url/schema.ts" -o "$schema"; then
+            mkdir -p "$scratch/lib"
+            download "$schema_url/lib/sortable.ts" -o "$scratch/lib/sortable.ts"
+            schema_permissions+=(--allow-fs-read="$scratch/lib/sortable.ts")
+        else
+            # Earlier Ghost 6 releases used CommonJS in either monorepo layout.
+            schema="$scratch/schema.js"
+            if ! download "$schema_url/schema.js" -o "$schema"; then
+                download "https://raw.githubusercontent.com/$upstream/$tag/ghost/core/core/server/data/schema/schema.js" \
+                    -o "$schema"
+            fi
         fi
         extractor="$PWD/scripts/extract-ghost-schema.cjs"
-        node --permission --allow-fs-read="$extractor" --allow-fs-read="$scratch/schema.js" \
-            "$extractor" "$scratch/schema.js" > "$scratch/schema.json"
+        node --permission --allow-fs-read="$extractor" --allow-fs-read="$schema" \
+            "${schema_permissions[@]}" "$extractor" "$schema" > "$scratch/schema.json"
         dotnet run --file scripts/generate-ghost-context.cs < "$scratch/schema.json"
         ;;
     Gitea|Gitea.PostgreSql)

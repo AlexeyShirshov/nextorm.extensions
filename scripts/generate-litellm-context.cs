@@ -8,7 +8,7 @@ using Nextorm.Contexts.PostgreSql;
 var connectionString = Environment.GetEnvironmentVariable("LITELLM_POSTGRES_CONNECTION");
 if (string.IsNullOrWhiteSpace(connectionString))
 {
-    Console.Error.WriteLine("Set LITELLM_POSTGRES_CONNECTION to a clean database migrated by LiteLLM Proxy 1.110.2.");
+    Console.Error.WriteLine("Set LITELLM_POSTGRES_CONNECTION to a disposable database migrated by LiteLLM Proxy.");
     return 1;
 }
 
@@ -20,5 +20,10 @@ PostgreSqlSchemaGenerator.Scaffold(
     include: null,
     entityName: null,
     propertyName: null,
-    clrType: (_, declared) => declared is "AccountingDeliveryState" or "JobStatus" ? "string" : null);
+    clrType: static (_, declared) => declared switch
+    {
+        "timestamptz" => "global::System.DateTime",
+        "AccountingDeliveryState" or "JobStatus" or "ScheduledJobRunStatus" => "string",
+        _ => null
+    });
 return 0;
