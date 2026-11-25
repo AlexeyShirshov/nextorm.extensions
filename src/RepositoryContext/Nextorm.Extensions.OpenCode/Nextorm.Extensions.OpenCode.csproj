@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <PackageId>Nextorm.Extensions.OpenCode</PackageId>
-    <PackageVersion>1.0.2</PackageVersion>
+    <PackageVersion>2.0.0</PackageVersion>
     <IsPackable>true</IsPackable>
     <Description>Nextorm repository context for the OpenCode SQLite database schema.</Description>
     <RepositoryUrl>https://github.com/AlexeyShirshov/nextorm.extensions</RepositoryUrl>

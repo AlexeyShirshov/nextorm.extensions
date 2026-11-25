@@ -1,6 +1,6 @@
 # Nextorm.Extensions.Redmine
 
-Nextorm repository context for the Redmine 6.1.0 PostgreSQL schema.
+Nextorm repository context for the Redmine 7.0.3 PostgreSQL schema.
 
 ## Installation
 

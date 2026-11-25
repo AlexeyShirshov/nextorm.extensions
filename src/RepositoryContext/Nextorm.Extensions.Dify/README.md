@@ -1,6 +1,6 @@
 # Nextorm.Extensions.Dify
 
-Nextorm repository context for the Dify 1.9.2 PostgreSQL schema.
+Nextorm repository context for the Dify 1.20.0 PostgreSQL schema.
 
 ## Installation
 

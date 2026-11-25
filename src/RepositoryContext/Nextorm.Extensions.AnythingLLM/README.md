@@ -1,6 +1,6 @@
 # Nextorm.Extensions.AnythingLLM
 
-Nextorm repository context for the AnythingLLM Desktop v1.8.5 SQLite schema.
+Nextorm repository context for the AnythingLLM Desktop v1.20.0 SQLite schema.
 
 ## Installation
 

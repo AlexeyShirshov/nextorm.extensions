@@ -1,6 +1,6 @@
 # Nextorm.Extensions.Grafana
 
-Nextorm repository context for the Grafana OSS 12.3.0 SQLite schema.
+Nextorm repository context for the Grafana OSS 13.3.2 SQLite schema.
 
 ## Installation
 

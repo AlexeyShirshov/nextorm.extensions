@@ -1,6 +1,6 @@
 # Nextorm.Extensions.OpenWebUI
 
-Nextorm repository context for the Open WebUI 0.6.43 SQLite schema.
+Nextorm repository context for the Open WebUI 0.13.5 SQLite schema.
 
 ## Installation
 

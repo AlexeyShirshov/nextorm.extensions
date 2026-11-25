@@ -1,6 +1,6 @@
 # Nextorm.Extensions.Immich
 
-Nextorm repository context for the Immich 2.0.0 PostgreSQL schema with native PgVector mappings.
+Nextorm repository context for the Immich 3.4.2 PostgreSQL schema with native PgVector mappings.
 
 ## Installation
 

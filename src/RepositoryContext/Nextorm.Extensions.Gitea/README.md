@@ -1,6 +1,6 @@
 # Nextorm.Extensions.Gitea
 
-Nextorm repository context for the Gitea 1.24.7 SQLite schema.
+Nextorm repository context for the Gitea 28.4.0 SQLite schema.
 
 ## Installation
 

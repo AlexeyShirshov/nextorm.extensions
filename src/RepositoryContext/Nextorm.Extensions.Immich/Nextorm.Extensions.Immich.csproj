@@ -3,13 +3,13 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <Nullable>enable</Nullable>
-    <PackageVersion>1.0.0</PackageVersion>
+    <PackageVersion>2.0.0</PackageVersion>
     <PackageId>Nextorm.Extensions.Immich</PackageId>
     <IsPackable>true</IsPackable>
     <RepositoryUrl>https://github.com/AlexeyShirshov/nextorm.extensions</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>nextorm;immich;postgresql;pgvector</PackageTags>
-    <Description>Nextorm repository context for the Immich 2.0.0 PostgreSQL schema with native PgVector mappings.</Description>
+    <Description>Nextorm repository context for the Immich 3.4.2 PostgreSQL schema with native PgVector mappings.</Description>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../PostgreSqlDateConverter.cs" Link="PostgreSqlDateConverter.cs" />

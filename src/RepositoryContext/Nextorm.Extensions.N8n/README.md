@@ -1,6 +1,6 @@
 # Nextorm.Extensions.N8n
 
-Use `N8nSqliteRepositoryContext` to query the n8n 2.48.8 SQLite schema from .NET.
+Use `N8nSqliteRepositoryContext` to query the n8n 2.49.6 SQLite schema from .NET.
 The package maps tables such as `workflow_entity` and `execution_entity` with
 their default names (no `DB_TABLE_PREFIX`).
 It doesn't target PostgreSQL or map the per-instance tables that n8n creates

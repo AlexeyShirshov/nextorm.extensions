@@ -1,6 +1,6 @@
 # Nextorm.Extensions.Gitea.PostgreSql
 
-Nextorm repository context for the Gitea 1.24.7 PostgreSQL schema.
+Nextorm repository context for the Gitea 28.4.0 PostgreSQL schema.
 
 ## Installation
 
