@@ -1,6 +1,6 @@
 # Nextorm.Extensions.Ghost
 
-Nextorm repository context for the Ghost 6.0.0 MySQL application schema.
+Nextorm repository context for the Ghost 6.79.0 MySQL application schema.
 
 ## Installation
 

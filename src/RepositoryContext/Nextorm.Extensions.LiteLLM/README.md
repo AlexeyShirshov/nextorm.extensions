@@ -1,6 +1,6 @@
 # Nextorm.Extensions.LiteLLM
 
-Nextorm repository context for the LiteLLM Proxy 1.110.2 PostgreSQL schema.
+Nextorm repository context for the LiteLLM Proxy 1.111.0 PostgreSQL schema.
 
 ## Installation
 
