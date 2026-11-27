@@ -23,11 +23,11 @@ public class KnowledgeFile
     [global::System.ComponentModel.DataAnnotations.Schema.Column("directory_id", Order = 6, TypeName = "TEXT")]
     public string? DirectoryId { get; set; }
 
-    [global::NextORM.Core.Relationship(ForeignKeys = new[] { nameof(KnowledgeId) }, PrincipalKeys = new[] { nameof(global::Nextorm.Extensions.OpenWebUI.Knowledge.Id) })]
-    public Knowledge? Knowledge { get; set; }
-
     [global::NextORM.Core.Relationship(ForeignKeys = new[] { nameof(FileId) }, PrincipalKeys = new[] { nameof(global::Nextorm.Extensions.OpenWebUI.File.Id) })]
     public File? File { get; set; }
+
+    [global::NextORM.Core.Relationship(ForeignKeys = new[] { nameof(KnowledgeId) }, PrincipalKeys = new[] { nameof(global::Nextorm.Extensions.OpenWebUI.Knowledge.Id) })]
+    public Knowledge? Knowledge { get; set; }
 
     [global::NextORM.Core.Relationship(ForeignKeys = new[] { nameof(DirectoryId) }, PrincipalKeys = new[] { nameof(global::Nextorm.Extensions.OpenWebUI.KnowledgeDirectory.Id) })]
     public KnowledgeDirectory? KnowledgeDirectory { get; set; }
