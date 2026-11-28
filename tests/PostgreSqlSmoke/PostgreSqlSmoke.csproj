@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Generators/Nextorm.Contexts.PostgreSql/Nextorm.Contexts.PostgreSql.csproj" />
+    <ProjectReference Include="../../src/RepositoryContext/Nextorm.Extensions.PostgreSql/Nextorm.Extensions.PostgreSql.csproj" />
   </ItemGroup>
 </Project>

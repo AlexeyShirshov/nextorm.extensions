@@ -1,4 +1,7 @@
 using Nextorm.Contexts.PostgreSql;
+using Nextorm.Extensions.PostgreSql.PgCatalog;
+using NextORM.Core;
+using NextORM.Postgres;
 using Npgsql;
 
 // Run against a fresh disposable database, with the generated file outside the checkout.
@@ -74,7 +77,69 @@ finally
     directory.Delete(recursive: true);
 }
 Console.WriteLine("Case 3: filtered objects and custom type conversion.");
-Console.WriteLine("Selected: 3; completed: 3; failed: 0; skipped: 0.");
+
+command.CommandText = """
+    CREATE SCHEMA catalog_smoke;
+    CREATE TYPE catalog_smoke.mood AS ENUM ('low', 'high');
+    CREATE TABLE catalog_smoke.parent (id integer PRIMARY KEY);
+    CREATE TABLE catalog_smoke.child (
+        id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        parent_id integer REFERENCES catalog_smoke.parent ON UPDATE CASCADE ON DELETE SET NULL,
+        base_value integer DEFAULT 42,
+        calculated integer GENERATED ALWAYS AS (base_value + 1) STORED
+    );
+    CREATE UNIQUE INDEX child_expression ON catalog_smoke.child ((abs(base_value)))
+        INCLUDE (parent_id) WHERE base_value > 0;
+    CREATE TABLE catalog_smoke.partitioned (id integer) PARTITION BY RANGE (id);
+    CREATE TABLE catalog_smoke.partition_default PARTITION OF catalog_smoke.partitioned DEFAULT;
+    CREATE SEQUENCE catalog_smoke.sequence AS integer START 7 INCREMENT 3 CYCLE;
+    """;
+command.ExecuteNonQuery();
+
+using var db = new PostgresDataContext(connection, new DataContextBuilder().UseQuotedIdentifiers());
+long catalogSchemaId = db.From<PgNamespace>().Where(row => row.Name == "catalog_smoke").ToList().Single().Oid;
+var relations = db.From<PgRelation>()
+    .Where(row => row.Namespace == PgCatalogFunctions.ObjectId(catalogSchemaId)).ToList();
+long childId = relations.Single(row => row.Name == "child").Oid;
+var columns = db.From<PgAttribute>().Where(row => row.Relation == PgCatalogFunctions.ObjectId(childId)).ToList();
+var generated = columns.Single(row => row.Name == "calculated");
+Require(columns.Single(row => row.Name == "id").Identity == 'a' && generated.Generated == 's',
+    "Identity and generated column catalog codes");
+var defaults = db.AttributeDefaultExpressions(childId).ToList();
+Require(defaults.Any(row => row.Expression == "42") &&
+    defaults.Single(row => row.Number == generated.Number).Expression.Contains("base_value", StringComparison.Ordinal),
+    "SQL text for default and generated expressions");
+
+var constraints = db.From<PgConstraint>().Where(row => row.Relation == PgCatalogFunctions.ObjectId(childId)).ToList();
+var foreignKey = constraints.Single(row => row.Kind == 'f');
+Require(foreignKey.Keys is [2] && foreignKey.ReferencedKeys is [1] && foreignKey.OnUpdate == 'c' && foreignKey.OnDelete == 'n',
+    "Foreign key column numbers and action codes");
+var indexes = db.From<PgIndexMetadata>().Where(row => row.Relation == PgCatalogFunctions.ObjectId(childId)).ToList();
+Require(indexes.Any(row => row.IsPrimary && row.IsUnique && row.Keys is [1]) &&
+    indexes.Any(row => row.IsUnique && row.KeyCount == 1 && row.Keys is [0, 2]),
+    "Primary key, expression key, and included column");
+
+var partition = relations.Single(row => row.Name == "partition_default");
+long partitionId = partition.Oid;
+long partitionedId = relations.Single(row => row.Name == "partitioned").Oid;
+var partitioning = db.From<PgPartitionedTable>()
+    .Where(row => row.Relation == PgCatalogFunctions.ObjectId(partitionedId)).ToList().Single();
+var inheritance = db.From<PgInheritance>()
+    .Where(row => row.Relation == PgCatalogFunctions.ObjectId(partitionId)).ToList().Single();
+Require(partition.IsPartition && partitioning.Strategy == 'r' && partitioning.Keys is [1] &&
+    partitioning.DefaultPartition == partition.Oid && inheritance.Parent == partitionedId,
+    "Partition strategy, default, and parent relation");
+
+long moodId = db.From<PgType>()
+    .Where(row => row.Namespace == PgCatalogFunctions.ObjectId(catalogSchemaId) && row.Name == "mood").ToList().Single().Oid;
+var labels = db.From<PgEnum>().Where(row => row.Type == PgCatalogFunctions.ObjectId(moodId))
+    .OrderBy(row => row.SortOrder).Select(row => row.Label).ToList();
+Require(labels.SequenceEqual(["low", "high"]), "Enum label order");
+long sequenceId = relations.Single(row => row.Name == "sequence").Oid;
+var sequence = db.From<PgSequence>().Where(row => row.Relation == PgCatalogFunctions.ObjectId(sequenceId)).ToList().Single();
+Require(sequence is { Start: 7, Increment: 3, Cycle: true }, "Sequence settings");
+Console.WriteLine("Case 4: public catalog models and decoded metadata.");
+Console.WriteLine("Selected: 4; completed: 4; failed: 0; skipped: 0.");
 
 string Body(string name)
 {

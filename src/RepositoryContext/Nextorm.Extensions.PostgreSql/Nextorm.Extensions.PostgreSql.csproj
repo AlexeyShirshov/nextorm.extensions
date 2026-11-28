@@ -1,10 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <RepositoryUrl>https://github.com/AlexeyShirshov/nextorm.extensions</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <Description>NextORM mappings and query functions for the PostgreSQL system catalog and pgvector.</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Nextorm.Postgres" Version="1.0.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>
