@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Nextorm.Extensions.PostgreSql.PgCatalog;
 using Npgsql;
 using NextORM.Core;
 using NextORM.Postgres;
@@ -56,13 +57,15 @@ public static class PostgreSqlSchemaGenerator
         ((ITransactionManager)context).UseTransaction(transaction);
         var catalog = new PostgreSqlRepositoryContext(context);
         var namespaces = catalog.PgNamespace.ToList().ToDictionary(row => row.Oid, row => row.Nspname);
-        var classes = new List<(uint Oid, uint Relnamespace, string Relname, char Relkind)>();
-        using (var command = new NpgsqlCommand("SELECT oid, relnamespace, relname, relkind::text FROM pg_catalog.pg_class", connection, transaction))
-        using (var reader = command.ExecuteReader())
-        {
-            while (reader.Read())
-                classes.Add((reader.GetFieldValue<uint>(0), reader.GetFieldValue<uint>(1), reader.GetString(2), reader.GetString(3)[0]));
-        }
+        var classes = context.From<PgRelation>()
+            .Select(row => new PgClass
+            {
+                Oid = row.Oid,
+                Relnamespace = row.Namespace,
+                Relname = row.Name,
+                Relkind = row.Kind
+            })
+            .ToList();
         var objects = classes
             .Where(row => row.Relkind is 'r' or 'p' or 'f' or 'v' or 'm')
             .Select(row => (Row: row, Schema: namespaces[row.Relnamespace]))

@@ -11,7 +11,7 @@
     <DefineConstants Condition="'$(PublishAot)' == 'true'">$(DefineConstants);NATIVE_AOT</DefineConstants>
     <ToolCommandName>dotnet-nextorm</ToolCommandName>
     <PackageId>Nextorm.Scaffold</PackageId>
-    <PackageVersion>1.1.0</PackageVersion>
+    <PackageVersion>1.1.1</PackageVersion>
     <Description>Scaffold Nextorm repository contexts from databases and C# models from OData metadata.</Description>
     <RepositoryUrl>https://github.com/AlexeyShirshov/nextorm.extensions</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
