@@ -4,7 +4,7 @@ using NextORM.Postgres;
 using NextORM.Sqlite;
 using Nextorm.Extensions.Redmine;
 using Npgsql;
-using OpenWebUISqliteRepositoryContext = Nextorm.Extensions.OpenWebUI.OpenWebUISqliteRepositoryContext;
+using OpenWebUI = Nextorm.Extensions.OpenWebUI;
 
 if (args.Length != 1 || !File.Exists(args[0]) ||
     Environment.GetEnvironmentVariable("REDMINE_SMOKE_CONNECTION") is not { Length: > 0 } redmineConnection)
@@ -26,18 +26,28 @@ static void CheckOpenWebUI(string path)
     connection.Open();
     source.BackupDatabase(connection);
     using var context = new SqliteDataContext(connection, new DataContextBuilder().UseQuotedIdentifiers());
-    using var seed = connection.CreateCommand();
-    seed.CommandText = """
-        INSERT INTO chat (id,user_id,title,archived,created_at,updated_at,chat,pinned,meta)
-        VALUES ('nextorm-smoke','fixture','Example',0,1760000000,1760000001,'{"messages":[]}',1,'{}');
-        INSERT INTO config_old (id,data,version,created_at,updated_at) VALUES (101,'{}',1,'2025-01-02 03:04:05',NULL);
-        INSERT INTO "user" (id,name,email,role,profile_image_url,created_at,updated_at,last_active_at,date_of_birth)
-        VALUES ('with-date','Example','date@example.invalid','user','',1760000000,1760000000,1760000000,'2000-02-29'),
-               ('without-date','Example','no-date@example.invalid','user','',1760000000,1760000000,1760000000,NULL);
-        """;
-    seed.ExecuteNonQuery();
+    context.CreateInsertBuilder<OpenWebUI.Chat>()
+        .Value(row => row.Id, "nextorm-smoke")
+        .Value(row => row.UserId, "fixture")
+        .Value(row => row.Title, "Example")
+        .Value(row => row.Archived, false)
+        .Value(row => row.CreatedAt, 1760000000L)
+        .Value(row => row.UpdatedAt, 1760000001L)
+        .Value(row => row.Chat2, """{"messages":[]}""")
+        .Value(row => row.Pinned, true)
+        .Value(row => row.Meta, "{}")
+        .Insert();
+    context.CreateInsertBuilder<OpenWebUI.ConfigOld>()
+        .Value(row => row.Id, 101L)
+        .Value(row => row.Data, "{}")
+        .Value(row => row.Version, 1L)
+        .Value(row => row.CreatedAt, new DateTime(2025, 1, 2, 3, 4, 5))
+        .Value(row => row.UpdatedAt, (DateTime?)null)
+        .Insert();
+    InsertUser("with-date", "date@example.invalid", new DateOnly(2000, 2, 29));
+    InsertUser("without-date", "no-date@example.invalid", null);
 
-    var repository = new OpenWebUISqliteRepositoryContext(context);
+    var repository = new OpenWebUI.OpenWebUISqliteRepositoryContext(context);
     var chat = repository.Chat.ToList().Single(row => row.Id == "nextorm-smoke");
     var config = repository.ConfigOld.ToList().Single(row => row.Id == 101);
     var users = repository.User.ToList();
@@ -50,6 +60,19 @@ static void CheckOpenWebUI(string path)
         throw new InvalidOperationException("Open WebUI birth dates did not match the fixture.");
 
     Console.WriteLine("Open WebUI: chat Unix seconds, configuration date/time, and nullable birth dates passed.");
+
+    void InsertUser(string id, string email, DateOnly? birthDate) =>
+        context.CreateInsertBuilder<OpenWebUI.User>()
+            .Value(row => row.Id, id)
+            .Value(row => row.Name, "Example")
+            .Value(row => row.Email, email)
+            .Value(row => row.Role, "user")
+            .Value(row => row.ProfileImageUrl, "")
+            .Value(row => row.CreatedAt, 1760000000L)
+            .Value(row => row.UpdatedAt, 1760000000L)
+            .Value(row => row.LastActiveAt, 1760000000L)
+            .Value(row => row.DateOfBirth, birthDate)
+            .Insert();
 }
 
 static void CheckRedmine(string connectionString)
@@ -59,19 +82,27 @@ static void CheckRedmine(string connectionString)
     using var context = new PostgresDataContext(connection, new DataContextBuilder().UseQuotedIdentifiers());
     using var transaction = connection.BeginTransaction();
     ((ITransactionManager)context).UseTransaction(transaction);
-    using var seed = new NpgsqlCommand("""
-        INSERT INTO time_entries (id,project_id,user_id,hours,activity_id,spent_on,tyear,tmonth,tweek,created_on,updated_on)
-        VALUES (7654321,1,1,1.25,1,'2025-01-02',2025,1,1,'2025-01-02 03:04:05','2025-01-02 03:04:05');
-        INSERT INTO changesets (id,repository_id,revision,committed_on,commit_date)
-        VALUES (7654321,1,'with-date','2025-01-02 03:04:05','2025-01-02'),
-               (7654322,1,'without-date','2025-01-02 03:04:05',NULL);
-        """, connection, transaction);
-    seed.ExecuteNonQuery();
+    var timestamp = new DateTime(2025, 1, 2, 3, 4, 5);
+    var expected = new DateOnly(2025, 1, 2);
+    context.CreateInsertBuilder<TimeEntries>()
+        .Value(row => row.Id, 7654321)
+        .Value(row => row.ProjectId, 1)
+        .Value(row => row.UserId, 1)
+        .Value(row => row.Hours, 1.25)
+        .Value(row => row.ActivityId, 1)
+        .Value(row => row.SpentOn, expected)
+        .Value(row => row.Tyear, 2025)
+        .Value(row => row.Tmonth, 1)
+        .Value(row => row.Tweek, 1)
+        .Value(row => row.CreatedOn, timestamp)
+        .Value(row => row.UpdatedOn, timestamp)
+        .Insert();
+    InsertChangeset(7654321, "with-date", expected);
+    InsertChangeset(7654322, "without-date", null);
 
     var repository = new RedminePostgreSqlRepositoryContext(context);
     var timeEntry = repository.TimeEntries.ToList().Single(row => row.Id == 7654321);
     var changesets = repository.Changesets.ToList();
-    var expected = new DateOnly(2025, 1, 2);
     if (timeEntry.SpentOn != expected ||
         changesets.Single(row => row.Id == 7654321).CommitDate != expected ||
         changesets.Single(row => row.Id == 7654322).CommitDate is not null)
@@ -79,4 +110,13 @@ static void CheckRedmine(string connectionString)
 
     transaction.Rollback();
     Console.WriteLine("Redmine: date, nullable date, and NULL passed.");
+
+    void InsertChangeset(int id, string revision, DateOnly? date) =>
+        context.CreateInsertBuilder<Changesets>()
+            .Value(row => row.Id, id)
+            .Value(row => row.RepositoryId, 1)
+            .Value(row => row.Revision, revision)
+            .Value(row => row.CommittedOn, timestamp)
+            .Value(row => row.CommitDate, date)
+            .Insert();
 }

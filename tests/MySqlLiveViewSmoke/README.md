@@ -2,8 +2,9 @@
 
 `Program.cs` is the existing live catalog regression harness. It checks a view, a
 single-key base table, and a keyless base table. Its `--ready <unix-socket>`
-mode uses the same MySqlConnector client and socket path, but only executes
-`SELECT VERSION(), @@global.skip_networking`; it does not create fixtures.
+mode uses the same MySqlConnector client and socket path. It reads the server
+version from the connection and checks `skip_networking` through NextORM
+without creating fixtures.
 
 For a live run, from the repository root in WSL, set `TASK_SLUG` and `REVISION`
 to the active PDCA task and revision. The example gives each scoped CHECK a

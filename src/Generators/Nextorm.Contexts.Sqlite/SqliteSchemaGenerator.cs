@@ -143,21 +143,17 @@ public static class SqliteSchemaGenerator
             source.Append("}\n");
         }
         var navigations = new StringBuilder();
+        var mainSchema = new[] { "main" };
         foreach (var (table, entity) in entities.OrderByDescending(pair => pair.Value.Offset))
         {
-            using var command = connection.CreateCommand();
-            command.Transaction = transaction;
-            command.CommandText = """
-                SELECT id, "table", "from", "to"
-                FROM pragma_foreign_key_list($table, 'main')
-                ORDER BY id, seq
-                """;
-            command.Parameters.AddWithValue("$table", table);
-            using var reader = command.ExecuteReader();
-            var foreignKeys = new List<(long Id, string Table, string From, string? To)>();
-            while (reader.Read())
-                foreignKeys.Add((reader.GetInt64(0), reader.GetString(1), reader.GetString(2),
-                    reader.IsDBNull(3) ? null : reader.GetString(3)));
+            // Singleton IN predicates supply the PRAGMA's hidden arguments.
+            var tableNames = new[] { table };
+            var foreignKeys = dataContext.From<PragmaForeignKey>()
+                .Where(row => tableNames.Contains(row.TableArgument) && mainSchema.Contains(row.SchemaArgument))
+                .OrderBy(row => row.Id)
+                .ThenBy(row => row.Sequence)
+                .Select(row => new PragmaForeignKey { Id = row.Id, Table = row.Table, From = row.From, To = row.To })
+                .ToList();
 
             navigations.Clear();
             foreach (var key in foreignKeys.GroupBy(column => column.Id))

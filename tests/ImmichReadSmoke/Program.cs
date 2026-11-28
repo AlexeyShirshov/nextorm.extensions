@@ -17,24 +17,48 @@ var id = Guid.NewGuid();
 var clusterId = Guid.NewGuid();
 var personGroupId = Guid.NewGuid();
 var embedding = "[" + string.Join(',', new[] { "1", "-0.5" }.Concat(Enumerable.Repeat("0", 510))) + "]";
-using var seed = new NpgsqlCommand("""
-    INSERT INTO public.cluster_group (id) VALUES (@clusterId);
-    INSERT INTO public."user" (id, email, "clusterGroupId") VALUES (@id, @email, @clusterId);
-    INSERT INTO public.person_group (id, "clusterGroupId") VALUES (@personGroupId, @clusterId);
-    INSERT INTO public.asset (id, "ownerId", type, "originalPath", "fileCreatedAt", "fileModifiedAt",
-        checksum, "checksumAlgorithm", "originalFileName", "localDateTime")
-        VALUES (@id, @id, 'IMAGE', '/smoke.jpg', now(), now(), decode(repeat('01', 20), 'hex'), 'sha1', 'smoke.jpg', now());
-    INSERT INTO public.asset_face (id, "assetId") VALUES (@id, @id);
-    INSERT INTO public.face_search ("faceId", embedding) VALUES (@id, CAST(@embedding AS vector));
-    INSERT INTO public.person ("ownerId", "personGroupId", name, "thumbnailPath", "birthDate")
-        VALUES (@id, @personGroupId, 'Example', '', '2000-02-29');
-    """, connection, transaction);
-seed.Parameters.AddWithValue("id", id);
-seed.Parameters.AddWithValue("clusterId", clusterId);
-seed.Parameters.AddWithValue("personGroupId", personGroupId);
-seed.Parameters.AddWithValue("email", $"{id:N}@example.invalid");
-seed.Parameters.AddWithValue("embedding", embedding);
-seed.ExecuteNonQuery();
+var now = DateTime.UtcNow;
+var checksum = Enumerable.Repeat((byte)1, 20).ToArray();
+context.CreateInsertBuilder<ClusterGroup>().Value(row => row.Id, clusterId).Insert();
+context.CreateInsertBuilder<User>()
+    .Value(row => row.Id, id)
+    .Value(row => row.Email, $"{id:N}@example.invalid")
+    .Value(row => row.ClusterGroupId, clusterId)
+    .Insert();
+context.CreateInsertBuilder<PersonGroup>()
+    .Value(row => row.Id, personGroupId)
+    .Value(row => row.ClusterGroupId, clusterId)
+    .Insert();
+context.CreateInsertBuilder<Asset>()
+    .Values(context.From<ClusterGroup>().Where(row => row.Id == clusterId), _ => new Asset
+    {
+        Id = id,
+        OwnerId = id,
+        Type = "IMAGE",
+        OriginalPath = "/smoke.jpg",
+        FileCreatedAt = now,
+        FileModifiedAt = now,
+        Checksum = checksum,
+        ChecksumAlgorithm = ImmichSeedFunctions.ChecksumAlgorithm("sha1"),
+        OriginalFileName = "smoke.jpg",
+        LocalDateTime = now
+    })
+    .Insert();
+context.CreateInsertBuilder<AssetFace>()
+    .Value(row => row.Id, id)
+    .Value(row => row.AssetId, id)
+    .Insert();
+context.CreateInsertBuilder<FaceSearch>()
+    .Value(row => row.FaceId, id)
+    .Value(row => row.Embedding, PgVector.Parse(embedding))
+    .Insert();
+context.CreateInsertBuilder<Person>()
+    .Value(row => row.OwnerId, id)
+    .Value(row => row.PersonGroupId, personGroupId)
+    .Value(row => row.Name, "Example")
+    .Value(row => row.ThumbnailPath, "")
+    .Value(row => row.BirthDate, new DateOnly(2000, 2, 29))
+    .Insert();
 
 var row = repository.FaceSearch.ToList().Single(face => face.FaceId == id);
 PgVector actual = row.Embedding;
@@ -46,3 +70,9 @@ if (repository.Person.ToList().Single(person => person.OwnerId == id && person.P
 
 transaction.Rollback();
 Console.WriteLine("Immich face embedding and birth date read through Nextorm without a plugin. Fixture rolled back.");
+
+internal static class ImmichSeedFunctions
+{
+    [SqlFunction("asset_checksum_algorithm_enum", Schema = "public")]
+    public static string ChecksumAlgorithm(string value) => throw new NotSupportedException();
+}

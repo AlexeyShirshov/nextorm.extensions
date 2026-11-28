@@ -46,6 +46,7 @@ public static class LiveCatalogGenerator
         if (isMariaDb != (provider == CatalogProvider.MariaDb))
             throw new InvalidDataException($"Connected server does not match the selected provider {provider}.");
 
+        connection.ChangeDatabase("information_schema");
         using DataContext context = isMariaDb
             ? new MariaDbDataContext(connection, new DataContextBuilder().UseQuotedIdentifiers())
             : new MySqlDataContext(connection, new DataContextBuilder().UseQuotedIdentifiers());

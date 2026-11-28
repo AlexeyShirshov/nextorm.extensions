@@ -1,6 +1,10 @@
-using MySqlConnector;
 using System.Globalization;
 using System.Text;
+using MySqlConnector;
+using MySqlDatabaseMappings;
+using NextORM.Core;
+using NextORM.MariaDb;
+using NextORM.MySql;
 
 namespace Nextorm.Contexts.MySql;
 
@@ -40,34 +44,51 @@ public static class MySqlSchemaGenerator
             throw new InvalidDataException(mariaDb
                 ? "MariaDB scaffolding requires a MariaDB server."
                 : "MySQL scaffolding requires a MySQL server.");
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT c.TABLE_NAME, c.COLUMN_NAME, c.COLUMN_TYPE, c.IS_NULLABLE, k.ORDINAL_POSITION
-            FROM information_schema.COLUMNS c
-            JOIN information_schema.TABLES t USING (TABLE_SCHEMA, TABLE_NAME)
-            LEFT JOIN information_schema.KEY_COLUMN_USAGE k
-                ON k.TABLE_SCHEMA = c.TABLE_SCHEMA AND k.TABLE_NAME = c.TABLE_NAME
-                AND k.COLUMN_NAME = c.COLUMN_NAME AND k.CONSTRAINT_NAME = 'PRIMARY'
-            WHERE c.TABLE_SCHEMA = @schema AND (t.TABLE_TYPE = 'BASE TABLE' OR (@views = 1 AND t.TABLE_TYPE = 'VIEW'))
-            ORDER BY BINARY c.TABLE_NAME, c.ORDINAL_POSITION
-            """;
-        command.Parameters.AddWithValue("@schema", schema);
-        command.Parameters.AddWithValue("@views", mariaDb ? 1 : 0);
-        using var reader = command.ExecuteReader();
+        connection.ChangeDatabase("information_schema");
+        using DataContext context = mariaDb
+            ? new MariaDbDataContext(connection, new DataContextBuilder().UseQuotedIdentifiers())
+            : new MySqlDataContext(connection, new DataContextBuilder().UseQuotedIdentifiers());
+        var kinds = mariaDb ? new[] { "BASE TABLE", "VIEW" } : ["BASE TABLE"];
+        var rows = context.From<MySqlColumns>()
+            .Join(context.From<MySqlTables>(), (column, table) =>
+                column.Column1 == table.Column1 && column.Column2 == table.Column2)
+            .LeftJoin(context.From<MySqlKeyColumnUsage>(), (row, key) =>
+                row.Item1.Column1 == key.Column1 && row.Item1.Column2 == key.Column2 &&
+                row.Item1.Column3 == key.Column3 && key.Column4 == "PRIMARY")
+            .Where(row => row.Item1.Column1 == schema && kinds.Contains(row.Item2.Column3))
+            .Select(row => new CatalogColumn
+            {
+                Table = row.Item1.Column2!,
+                Name = row.Item1.Column3!,
+                Declaration = row.Item1.Column4!,
+                Nullable = row.Item1.Column5!,
+                Position = row.Item1.Column6,
+                KeyPosition = row.Item3.Column5
+            })
+            .ToList();
+        var byteOrder = Comparer<byte[]>.Create((left, right) => left.AsSpan().SequenceCompareTo(right));
         var tables = new Dictionary<string, (List<MySqlColumn> Columns, SortedDictionary<int, string> Keys)>(StringComparer.Ordinal);
-        while (reader.Read())
+        foreach (var row in rows.OrderBy(row => Encoding.UTF8.GetBytes(row.Table), byteOrder).ThenBy(row => row.Position))
         {
-            var table = reader.GetString(0);
-            if (!tables.TryGetValue(table, out var mapping))
-                tables.Add(table, mapping = ([], []));
-            var column = reader.GetString(1);
-            mapping.Columns.Add(new(column, reader.GetString(2), reader.GetString(3) == "YES"));
-            if (!reader.IsDBNull(4))
-                mapping.Keys.Add(reader.GetInt32(4), column);
+            if (!tables.TryGetValue(row.Table, out var mapping))
+                tables.Add(row.Table, mapping = ([], []));
+            mapping.Columns.Add(new(row.Name, row.Declaration, row.Nullable == "YES"));
+            if (row.KeyPosition is int keyPosition)
+                mapping.Keys.Add(keyPosition, row.Name);
         }
         GenerateTables(schema,
             tables.Select(pair => new MySqlTable(pair.Key, pair.Value.Columns, [.. pair.Value.Keys.Values])).ToArray(),
             outputPath, targetNamespace, contextName, !singleFile, include, entityName, propertyName, clrType);
+    }
+
+    private sealed class CatalogColumn
+    {
+        public string Table { get; init; } = "";
+        public string Name { get; init; } = "";
+        public string Declaration { get; init; } = "";
+        public string Nullable { get; init; } = "";
+        public int? Position { get; init; }
+        public int? KeyPosition { get; init; }
     }
 
     // Columns are supplied in catalog ordinal order. A null key denotes a table with no declared key.

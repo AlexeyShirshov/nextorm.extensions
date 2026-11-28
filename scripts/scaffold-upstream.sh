@@ -134,7 +134,7 @@ sqlite_from_image() {
     docker cp "$container:$database" "$scratch/schema.sqlite"
     # Preserve committed pages even if the application did not checkpoint on shutdown.
     docker cp "$container:$database-wal" "$scratch/schema.sqlite-wal" 2>/dev/null || true
-    [[ "$(sqlite3 -readonly "$scratch/schema.sqlite" 'PRAGMA quick_check;')" == ok ]]
+    dotnet run --file scripts/check-sqlite-schema.cs -- "$scratch/schema.sqlite"
 }
 
 start_postgres() {

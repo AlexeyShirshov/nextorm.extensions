@@ -19,7 +19,7 @@ try
         CREATE TABLE keyless(label TEXT NOT NULL, qty INTEGER, twice INTEGER GENERATED ALWAYS AS (qty * 2) VIRTUAL);
         CREATE VIEW readable AS SELECT label, twice FROM keyless;
         CREATE TABLE child_first(first_id INTEGER REFERENCES keyed(id));
-        CREATE TABLE child_second(second_id INTEGER REFERENCES keyed(id));
+        CREATE TABLE child_second(second_id INTEGER REFERENCES keyed);
         """;
     command.ExecuteNonQuery();
     SqliteSchemaGenerator.Generate(database, output);
@@ -36,7 +36,7 @@ try
         throw new InvalidOperationException("Expected exactly one key annotation.");
     if (source.Split("[global::NextORM.Core.Relationship(", StringSplitOptions.None).Length != 3 ||
         !source.Contains("ForeignKeys = new[] { nameof(FirstId) }", StringComparison.Ordinal) ||
-        !source.Contains("ForeignKeys = new[] { nameof(SecondId) }", StringComparison.Ordinal))
+        !source.Contains("ForeignKeys = new[] { nameof(SecondId) }, PrincipalKeys = new[] { nameof(global::Nextorm.Extensions.SmokeFixture.Keyed.Id) }", StringComparison.Ordinal))
         throw new InvalidOperationException("Expected one independent navigation for each foreign key.");
     Console.WriteLine("Completed case: table/view, generated column, keyless mapping and two foreign keys.");
 

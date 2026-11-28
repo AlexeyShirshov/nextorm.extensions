@@ -1,5 +1,8 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using MySqlConnector;
 using Nextorm.Contexts.LiveCatalog;
+using NextORM.Core;
+using NextORM.MySql;
 
 if (args.Length == 2 && args[0] == "--ready" && Path.IsPathFullyQualified(args[1]))
 {
@@ -38,6 +41,16 @@ try
     var table = File.ReadAllText(tablePath);
     Require(table.Contains("DataAnnotations.Key]", StringComparison.Ordinal) &&
         !table.Contains("Description(\"MySQL VIEW\")", StringComparison.Ordinal), "live keyed table behavior");
+    var scaffoldDirectory = Path.Combine(Path.GetDirectoryName(args[1])!, "Scaffold");
+    LiveCatalogGenerator.ScaffoldMySql(settings.ConnectionString, "step11_fixture",
+        Path.Combine(scaffoldDirectory, "SchemaContext.cs"), "Fixture", "SchemaContext");
+    var scaffoldModels = Path.Combine(scaffoldDirectory, "Models");
+    Require(File.ReadAllText(Path.Combine(scaffoldModels, "Ordinary.g.cs"))
+            .Contains("DataAnnotations.Key]", StringComparison.Ordinal) &&
+        !File.ReadAllText(Path.Combine(scaffoldModels, "Keyless.g.cs"))
+            .Contains("DataAnnotations.Key]", StringComparison.Ordinal) &&
+        !File.Exists(Path.Combine(scaffoldModels, "Projected.g.cs")),
+        "schema scaffolding retains keyless tables and excludes MySQL views");
     Console.WriteLine("Case 2 complete: live MySQL base table retains declared key.");
 
     var keylessPath = Path.Combine(Path.GetDirectoryName(args[1])!, "Keyless.cs");
@@ -75,20 +88,23 @@ static int CheckReadiness(string socketPath)
         };
         using var connection = new MySqlConnection(settings.ConnectionString);
         connection.Open();
+        connection.ChangeDatabase("performance_schema");
 
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT VERSION(), @@global.skip_networking;";
-        using var reader = command.ExecuteReader();
-        if (!reader.Read())
+        using var context = new MySqlDataContext(connection, new DataContextBuilder().UseQuotedIdentifiers());
+        var value = context.From<MySqlGlobalVariable>()
+            .Where(row => row.Name == "skip_networking")
+            .Select(row => row.Value)
+            .ToList()
+            .SingleOrDefault();
+        if (value is not ("ON" or "OFF"))
         {
-            Console.Error.WriteLine("Readiness query returned no row.");
+            Console.Error.WriteLine("Readiness query did not return a skip_networking setting.");
             return 1;
         }
 
-        var version = reader.GetString(0);
-        var skipNetworking = reader.GetInt32(1);
-        Console.WriteLine($"READY mysql_version={version} skip_networking={skipNetworking}");
-        return skipNetworking == 0 ? 0 : 1;
+        var skipNetworking = value == "ON";
+        Console.WriteLine($"READY mysql_version={connection.ServerVersion} skip_networking={(skipNetworking ? 1 : 0)}");
+        return skipNetworking ? 1 : 0;
     }
     catch (Exception error)
     {
@@ -96,4 +112,11 @@ static int CheckReadiness(string socketPath)
         Console.Error.WriteLine($"MySQL is not ready ({error.GetType().Name}).");
         return 75;
     }
+}
+
+[Table("global_variables", Schema = "performance_schema")]
+internal sealed class MySqlGlobalVariable
+{
+    [Column("VARIABLE_NAME")] public string Name { get; set; } = "";
+    [Column("VARIABLE_VALUE")] public string? Value { get; set; }
 }
