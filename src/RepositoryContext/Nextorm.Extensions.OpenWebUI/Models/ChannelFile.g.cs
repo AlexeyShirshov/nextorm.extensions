@@ -23,11 +23,11 @@ public class ChannelFile
     [global::System.ComponentModel.DataAnnotations.Schema.Column("message_id", Order = 6, TypeName = "TEXT")]
     public string? MessageId { get; set; }
 
-    [global::NextORM.Core.Relationship(ForeignKeys = new[] { nameof(FileId) }, PrincipalKeys = new[] { nameof(global::Nextorm.Extensions.OpenWebUI.File.Id) })]
-    public File? File { get; set; }
-
     [global::NextORM.Core.Relationship(ForeignKeys = new[] { nameof(ChannelId) }, PrincipalKeys = new[] { nameof(global::Nextorm.Extensions.OpenWebUI.Channel.Id) })]
     public Channel? Channel { get; set; }
+
+    [global::NextORM.Core.Relationship(ForeignKeys = new[] { nameof(FileId) }, PrincipalKeys = new[] { nameof(global::Nextorm.Extensions.OpenWebUI.File.Id) })]
+    public File? File { get; set; }
 
     [global::NextORM.Core.Relationship(ForeignKeys = new[] { nameof(MessageId) }, PrincipalKeys = new[] { nameof(global::Nextorm.Extensions.OpenWebUI.Message.Id) })]
     public Message? Message { get; set; }
