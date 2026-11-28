@@ -1,0 +1,8 @@
+<linker>
+  <assembly fullname="Nextorm.Extensions.PostgreSql">
+    <type fullname="Nextorm.Extensions.PostgreSql.PgCatalog.PgCatalogCharConverter">
+      <!-- NextORM instantiates the converter through ValueConverterAttribute. -->
+      <method signature="System.Void .ctor()" />
+    </type>
+  </assembly>
+</linker>

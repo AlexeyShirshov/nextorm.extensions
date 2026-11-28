@@ -61,7 +61,7 @@ pgvector for catalog queries.
    ```
 
    To run the file outside the checkout, replace the `#:project` directive with
-   `#:package Nextorm.Extensions.PostgreSql@1.0.0`.
+   `#:package Nextorm.Extensions.PostgreSql@1.0.1`.
 
 3. From the directory containing the file, run it. The query prints one schema name
    per line, including `pg_catalog`:
